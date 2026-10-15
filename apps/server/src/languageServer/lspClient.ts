@@ -2,7 +2,7 @@
 // @effect-diagnostics globalTimers:off - request timeouts belong to this promise-based peer; the
 // Effect service owns server lifetimes.
 import * as NodeChildProcess from "node:child_process";
-import * as NodeUrl from "node:url";
+import * as NodeURL from "node:url";
 
 import { encodeLspMessage, LspMessageDecoder } from "./lspFraming.ts";
 
@@ -49,6 +49,7 @@ export class LspClient {
       readonly command: string;
       readonly args: readonly string[];
       readonly rootPath: string;
+      readonly env: NodeJS.ProcessEnv;
     },
     handlers: {
       readonly onDiagnostics: (uri: string, diagnostics: readonly LspDiagnostic[]) => void;
@@ -59,7 +60,7 @@ export class LspClient {
     this.#process = NodeChildProcess.spawn(input.command, [...input.args], {
       cwd: input.rootPath,
       stdio: ["pipe", "pipe", "pipe"],
-      env: process.env,
+      env: input.env,
       windowsHide: true,
     });
     this.#process.stdout?.on("data", (chunk: Buffer) => {
@@ -72,7 +73,7 @@ export class LspClient {
       this.#markExited(`exited (${signal ?? code ?? "unknown"})`),
     );
 
-    const rootUri = NodeUrl.pathToFileURL(input.rootPath).href;
+    const rootUri = NodeURL.pathToFileURL(input.rootPath).href;
     this.ready = this.request("initialize", {
       processId: process.pid,
       clientInfo: { name: "T3 Code" },

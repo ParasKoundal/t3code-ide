@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - executable lookup and file URLs.
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
-import * as NodeUrl from "node:url";
+import * as NodeURL from "node:url";
 
 import {
   LanguageServerError,
@@ -12,6 +12,7 @@ import {
   type LanguageServerHoverResult,
   type LanguageServerPositionInput,
 } from "@t3tools/contracts";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -147,20 +148,24 @@ export const make = Effect.gen(function* () {
         ),
         Effect.map((target) => ({
           absolutePath: target.absolutePath,
-          uri: NodeUrl.pathToFileURL(target.absolutePath).href,
+          uri: NodeURL.pathToFileURL(target.absolutePath).href,
         })),
       );
 
   /** The running server for a folder, started on first use. Null when none is installed. */
-  const acquireSession = (spec: LanguageServerSpec, rootPath: string): Session | null => {
+  const acquireSession = (
+    spec: LanguageServerSpec,
+    rootPath: string,
+    host: { readonly platform: NodeJS.Platform; readonly env: NodeJS.ProcessEnv },
+  ): Session | null => {
     const key = `${spec.id}\u0000${rootPath}`;
     const existing = sessions.get(key);
     if (existing && !existing.client.exited) return existing;
-    const isWindows = process.platform === "win32";
+    const isWindows = host.platform === "win32";
     const command = resolveLanguageServerCommand({
       spec,
       projectRoot: rootPath,
-      pathDirectories: (process.env.PATH ?? "").split(NodePath.delimiter).filter(Boolean),
+      pathDirectories: (host.env.PATH ?? "").split(NodePath.delimiter).filter(Boolean),
       pathSeparator: NodePath.sep,
       executableSuffixes: isWindows ? [".cmd", ".exe", ""] : [""],
       isExecutable,
@@ -175,7 +180,7 @@ export const make = Effect.gen(function* () {
       exitListeners: new Set(),
       idleShutdown: null,
       client: new LspClient(
-        { command: command.command, args: command.args, rootPath },
+        { command: command.command, args: command.args, rootPath, env: host.env },
         {
           onDiagnostics: (uri, diagnostics) => {
             const converted = diagnostics.map(toLanguageServerDiagnostic);
@@ -230,7 +235,10 @@ export const make = Effect.gen(function* () {
         }
         const { spec, languageId } = match;
         const document = yield* resolveDocument(input);
-        const session = acquireSession(spec, input.cwd);
+        const session = acquireSession(spec, input.cwd, {
+          platform: yield* HostProcess.Platform,
+          env: yield* HostProcess.Environment,
+        });
         if (session === null) {
           Queue.offerUnsafe(queue, {
             type: "unavailable",
@@ -392,7 +400,7 @@ export function definitionLocations(result: unknown): LanguageServerDefinitionRe
     try {
       return [
         {
-          path: NodeUrl.fileURLToPath(uri),
+          path: NodeURL.fileURLToPath(uri),
           line: Math.max(0, start?.line ?? 0),
           character: Math.max(0, start?.character ?? 0),
         },
