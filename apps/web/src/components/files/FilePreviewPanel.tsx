@@ -76,6 +76,8 @@ import { AudioPreview } from "./AudioPreview";
 import { BrowserDocumentFrame, isPdfPreviewFile } from "./BrowserDocumentFrame";
 import { DelimitedTablePreview } from "./DelimitedTablePreview";
 import FileBrowserPanel from "./FileBrowserPanel";
+import { LanguageStatusBar } from "./LanguageStatusBar";
+import { useLanguageServer } from "./useLanguageServer";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import {
@@ -669,6 +671,7 @@ interface EditableFileSurfaceProps {
   wordWrap: boolean;
   onPostRender: FilePostRender;
   onPendingChange: (relativePath: string, pending: boolean) => void;
+  threadRef: ScopedThreadRef;
 }
 
 interface FileSelectionOverride {
@@ -687,6 +690,7 @@ function EditableFileSurface({
   wordWrap,
   onPostRender,
   onPendingChange,
+  threadRef,
 }: EditableFileSurfaceProps) {
   const addReviewComment = useComposerDraftStore((store) => store.addReviewComment);
   const removeReviewComment = useComposerDraftStore((store) => store.removeReviewComment);
@@ -721,10 +725,25 @@ function EditableFileSurface({
   const { ready: editable, onPostRender: onEditablePostRender } =
     useEditableAfterHighlight(externalFile);
   const editorRef = useRef<Editor<"file", FileCommentAnnotationGroup, undefined> | null>(null);
+  const language = useLanguageServer({
+    environmentId,
+    cwd,
+    relativePath,
+    threadRef,
+    editorRef,
+    surfaceRef,
+  });
+  // Diagnostics can arrive before the editor attaches; it picks them up on attach.
+  const markersRef = useRef(language.markers);
+  useEffect(() => {
+    markersRef.current = language.markers;
+    editorRef.current?.setMarkers(language.markers);
+  }, [language.markers]);
   const editorOptions = useMemo<EditorOptions<"file", FileCommentAnnotationGroup, undefined>>(
     () => ({
       onAttach: (editor) => {
         editorRef.current = editor;
+        editor.setMarkers(markersRef.current);
       },
       onComplete: () => {
         editorRef.current = null;
@@ -908,53 +927,56 @@ function EditableFileSurface({
 
   return (
     <EditProvider createEditor={createFileEditor}>
-      <div ref={surfaceRef} className="flex min-h-0 flex-1">
-        <Virtualizer
-          className="file-preview-virtualizer min-h-0 flex-1 overflow-auto"
-          config={{
-            overscrollSize: 600,
-            intersectionObserverMargin: 1200,
-          }}
-        >
-          <File<FileCommentAnnotationGroup>
-            file={externalFile}
-            edit={editable}
-            editorOptions={editorOptions}
-            onEditChange={handleEditChange}
-            options={{
-              disableFileHeader: true,
-              enableGutterUtility: !hasOpenCommentForm,
-              enableLineSelection: !hasOpenCommentForm,
-              onGutterUtilityClick: setSelectedRange,
-              onLineSelectionChange: setSelectedRange,
-              onLineSelectionEnd: handleLineSelectionEnd,
-              overflow: wordWrap ? "wrap" : "scroll",
-              theme: resolveDiffThemeName(resolvedTheme),
-              preferredHighlighter: PREFERRED_HIGHLIGHTER,
-              themeType: resolvedTheme,
-              unsafeCSS: FILE_LINK_REVEAL_UNSAFE_CSS,
-              onPostRender: handlePostRender,
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div ref={surfaceRef} className="flex min-h-0 flex-1">
+          <Virtualizer
+            className="file-preview-virtualizer min-h-0 flex-1 overflow-auto"
+            config={{
+              overscrollSize: 600,
+              intersectionObserverMargin: 1200,
             }}
-            selectedLines={selectedRange}
-            lineAnnotations={lineAnnotations}
-            renderAnnotation={(annotation) => (
-              <div className="py-1">
-                {annotation.metadata.entries.map((entry) => (
-                  <DiffCommentAnnotation
-                    key={entry.id}
-                    kind={entry.kind}
-                    rangeLabel={formatFileCommentRange(entry.startLine, entry.endLine)}
-                    text={entry.text}
-                    onCancel={() => removeAnnotationEntry(entry.id)}
-                    onComment={(text) => submitAnnotationEntry(entry.id, text)}
-                    onDelete={() => removeAnnotationEntry(entry.id)}
-                  />
-                ))}
-              </div>
-            )}
-            className="min-h-full"
-          />
-        </Virtualizer>
+          >
+            <File<FileCommentAnnotationGroup>
+              file={externalFile}
+              edit={editable}
+              editorOptions={editorOptions}
+              onEditChange={handleEditChange}
+              options={{
+                disableFileHeader: true,
+                enableGutterUtility: !hasOpenCommentForm,
+                enableLineSelection: !hasOpenCommentForm,
+                onGutterUtilityClick: setSelectedRange,
+                onLineSelectionChange: setSelectedRange,
+                onLineSelectionEnd: handleLineSelectionEnd,
+                overflow: wordWrap ? "wrap" : "scroll",
+                theme: resolveDiffThemeName(resolvedTheme),
+                preferredHighlighter: PREFERRED_HIGHLIGHTER,
+                themeType: resolvedTheme,
+                unsafeCSS: FILE_LINK_REVEAL_UNSAFE_CSS,
+                onPostRender: handlePostRender,
+              }}
+              selectedLines={selectedRange}
+              lineAnnotations={lineAnnotations}
+              renderAnnotation={(annotation) => (
+                <div className="py-1">
+                  {annotation.metadata.entries.map((entry) => (
+                    <DiffCommentAnnotation
+                      key={entry.id}
+                      kind={entry.kind}
+                      rangeLabel={formatFileCommentRange(entry.startLine, entry.endLine)}
+                      text={entry.text}
+                      onCancel={() => removeAnnotationEntry(entry.id)}
+                      onComment={(text) => submitAnnotationEntry(entry.id, text)}
+                      onDelete={() => removeAnnotationEntry(entry.id)}
+                    />
+                  ))}
+                </div>
+              )}
+              className="min-h-full"
+            />
+          </Virtualizer>
+        </div>
+        <LanguageStatusBar event={language.event} hoverText={language.hoverText} />
       </div>
     </EditProvider>
   );
@@ -1476,6 +1498,7 @@ export default function FilePreviewPanel({
                   wordWrap={wordWrap}
                   onPostRender={onFilePostRender}
                   onPendingChange={onPendingChange}
+                  threadRef={threadRef}
                 />
               </DiffWorkerPoolProvider>
             )

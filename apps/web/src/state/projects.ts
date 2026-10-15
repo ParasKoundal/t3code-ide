@@ -1,6 +1,10 @@
 import { createEnvironmentProjectAtoms } from "@t3tools/client-runtime/state/projects";
 import { createProjectEnvironmentAtoms } from "@t3tools/client-runtime/state/projects";
-import { createEnvironmentRpcQueryAtomFamily } from "@t3tools/client-runtime/state/runtime";
+import {
+  createEnvironmentRpcCommand,
+  createEnvironmentRpcQueryAtomFamily,
+  createEnvironmentRpcSubscriptionAtomFamily,
+} from "@t3tools/client-runtime/state/runtime";
 import { WS_METHODS } from "@t3tools/contracts";
 
 import { environmentCatalog } from "../connection/catalog";
@@ -26,4 +30,26 @@ export const projectContentSearch = createEnvironmentRpcQueryAtomFamily(connecti
   tag: WS_METHODS.projectsSearchContents,
   staleTimeMs: 5_000,
   idleTtlMs: 60_000,
+});
+
+/**
+ * Web-only like content search: language intelligence backs the desktop and
+ * web editor, which mobile does not have. Diagnostics stream per open file;
+ * the server stops a language server once no file needs it.
+ */
+export const languageServerDiagnostics = createEnvironmentRpcSubscriptionAtomFamily(
+  connectionAtomRuntime,
+  {
+    label: "environment-data:language-server:diagnostics",
+    tag: WS_METHODS.languageServerDiagnostics,
+    idleTtlMs: 5_000,
+  },
+);
+export const languageServerHover = createEnvironmentRpcCommand(connectionAtomRuntime, {
+  label: "environment-data:language-server:hover",
+  tag: WS_METHODS.languageServerHover,
+});
+export const languageServerDefinition = createEnvironmentRpcCommand(connectionAtomRuntime, {
+  label: "environment-data:language-server:definition",
+  tag: WS_METHODS.languageServerDefinition,
 });

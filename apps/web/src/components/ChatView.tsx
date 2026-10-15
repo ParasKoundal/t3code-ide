@@ -4305,10 +4305,24 @@ export default function ChatView(props: ChatViewProps) {
       .map((project) => ({ cwd: project.workspaceRoot, title: project.title }));
     return roots.length > 0 ? roots : EMPTY_WORKSPACE_ROOTS;
   }, [activeProject, allProjects, ideWorkspace]);
+  // Absolute paths (from another workspace root, or a go-to-definition target)
+  // are mapped back to the folder that contains them so they stay editable. The
+  // thread's own folder counts too, so a definition in it opens like any file.
   const rightPanelFileRoot =
     renderedRightPanelSurface?.kind === "file" && !renderedRightPanelSurface.attachment
-      ? resolveWorkspaceRootFile(renderedRightPanelSurface.relativePath, ideWorkspaceRoots)
+      ? resolveWorkspaceRootFile(
+          renderedRightPanelSurface.relativePath,
+          activeWorkspaceRoot
+            ? [
+                { cwd: activeWorkspaceRoot, title: activeProject?.title ?? "" },
+                ...ideWorkspaceRoots,
+              ]
+            : ideWorkspaceRoots,
+        )
       : null;
+  // Within the thread's own folder, navigation opens relative paths like the explorer does.
+  const rightPanelFileRootIsPrimary =
+    rightPanelFileRoot !== null && rightPanelFileRoot.root.cwd === activeWorkspaceRoot;
   useLayoutEffect(() => {
     if (
       threadDetailLoading ||
@@ -11364,7 +11378,7 @@ export default function ChatView(props: ChatViewProps) {
               : 0
           }
           onOpenFile={
-            rightPanelFileRoot
+            rightPanelFileRoot && !rightPanelFileRootIsPrimary
               ? (path) =>
                   openFileSurface(resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd))
               : openFileSurface

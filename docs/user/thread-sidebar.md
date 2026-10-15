@@ -199,6 +199,19 @@ resize, and a file explorer stays beside the editor tabs. Click a file to open
 it as a tab, edit it, and save with `Cmd/Ctrl+S`. Closing the panel returns to
 the chat view; opening another thread brings the editor back.
 
+In the explorer, right-click a file or folder to create, rename, or delete
+files, or use the new file and new folder buttons above the tree. In IDE layout
+the terminal opens under the editor.
+
+TypeScript, JavaScript, Python, Go, and Rust files get errors and warnings
+inline when a language server is installed on the machine running T3 Code:
+`typescript-language-server`, `basedpyright` or `pyright`, `gopls`, or
+`rust-analyzer`. A project's own `node_modules/.bin` copy is used first. The bar
+under the editor shows the problem count and type information for the cursor,
+or how to install the missing server. Press `F12` or `Cmd/Ctrl`-click a symbol
+to open its definition. Diagnostics follow the saved file, so they also update
+when an agent edits it.
+
 ### Group projects into workspaces
 
 A workspace groups projects you work on together, such as a service and its
