@@ -2,7 +2,7 @@
  * Where development state lives, and how to keep it away from the shared
  * `~/.t3` that a user's installed T3 Code runs against.
  *
- * A linked git worktree gets its own (gitignored) `.t3code-ide`: feature work in a
+ * A linked git worktree gets its own (gitignored) `.t3`: feature work in a
  * throwaway branch must not share a database with the real app, and an ambient
  * `T3CODE_HOME` counts as an explicit base dir — flipping the state directory
  * from `<base>/dev` to `<base>/userdata`, the live production database.
@@ -12,8 +12,6 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-
-import { APP_HOME_DIRNAME } from "./appIdentity.ts";
 
 /**
  * A `.git` file points at the real git directory. A linked worktree's lives at
@@ -101,5 +99,6 @@ export const resolveWorktreeT3Home = (
       return undefined;
     }
     const path = yield* Path.Path;
-    return path.join(worktreePath, APP_HOME_DIRNAME);
+    // Dev state stays in the gitignored `.t3`; the app's own home name does not apply here.
+    return path.join(worktreePath, ".t3");
   });
