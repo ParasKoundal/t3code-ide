@@ -37,6 +37,7 @@ import {
   contextUsageForHandoff,
   historicalMessage,
   latestNativeContextUsage,
+  nativeTranscriptIsFull,
 } from "@t3tools/provider-core/server/handoffBudget";
 import { deliverContextHandoffs } from "./ContextHandoffDelivery.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -669,15 +670,37 @@ export const layer: Layer.Layer<
             handoff.delivery?.nativeThreadId === providerThread.nativeThreadRef?.nativeId &&
             handoff.delivery?.status === "pending",
         );
+        // History is waiting for this provider but its own transcript is too full
+        // to take it. Start the provider fresh with history fitted from T3's
+        // record instead of failing every turn. A fresh transcript has the whole
+        // window free, so this happens only when the room has actually run out.
+        const transcriptFull =
+          handoffs.length > 0 &&
+          nativeTranscriptIsFull({
+            // A model switch clears the row's usage; the last turn this native
+            // transcript reported still measures how full it is.
+            providerThread: {
+              contextUsage:
+                providerThread.contextUsage ??
+                latestNativeContextUsage(projection, providerThread)?.usage ??
+                null,
+            },
+            modelContextWindow: session.getModelContextWindow?.(
+              run.modelSelection,
+              resolvedRuntimePolicy.cwd,
+            ),
+          });
         const resumed = yield* Effect.result(
-          uncertainDelivery
+          uncertainDelivery || transcriptFull
             ? Effect.fail(
                 new ProviderAdapter.ProviderAdapterTurnStartError({
                   driver: session.driver,
                   threadId: projection.thread.id,
                   providerThreadId: providerThread.id,
                   runId,
-                  cause: "Uncertain native history injection",
+                  cause: uncertainDelivery
+                    ? "Uncertain native history injection"
+                    : "Native transcript has no room for pending history",
                 }),
               )
             : session.resumeThread({
@@ -695,7 +718,11 @@ export const layer: Layer.Layer<
           driver: session.driver,
           providerThreadId: providerThread.id,
           runId,
-          reason: uncertainDelivery ? "uncertain_history_delivery" : "resume_failed",
+          reason: uncertainDelivery
+            ? "uncertain_history_delivery"
+            : transcriptFull
+              ? "native_transcript_full"
+              : "resume_failed",
           errorTag: resumed.failure._tag,
         });
         const replacement = yield* loadFromProvider(

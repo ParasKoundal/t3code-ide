@@ -137,6 +137,30 @@ export function handoffBudget(input: {
   );
 }
 
+/** Below this many tokens of room, even a recovery marker plus recent history will not fit. */
+export const MIN_HANDOFF_ROOM_TOKENS = 4_000;
+
+/**
+ * Whether a native transcript has run out of room for pending history. Only a
+ * measured transcript qualifies: an unmeasured one may still fit, and replacing
+ * it would throw away provider-side context for nothing. Uses the same window
+ * and reserve as `handoffBudget`, so it fires exactly when delivery would fail.
+ */
+export function nativeTranscriptIsFull(input: {
+  readonly providerThread: Pick<OrchestrationV2ProviderThread, "contextUsage">;
+  readonly modelContextWindow?: number | undefined;
+}): boolean {
+  const usage = input.providerThread.contextUsage;
+  if (usage?.usedTokens === undefined || usage.usedTokens <= 0) return false;
+  const window = Math.min(
+    input.modelContextWindow ?? usage.maxTokens ?? 128_000,
+    usage.maxTokens ?? Infinity,
+    usage.autoCompactThreshold ?? Infinity,
+  );
+  const room = window - usage.usedTokens - Math.max(16_000, Math.ceil(window / 4));
+  return room < MIN_HANDOFF_ROOM_TOKENS;
+}
+
 export function historicalMessage(
   item: OrchestrationV2TurnItem,
 ): OrchestrationV2HistoricalMessage | null {

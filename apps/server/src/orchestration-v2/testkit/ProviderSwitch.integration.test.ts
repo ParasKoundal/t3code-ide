@@ -2954,6 +2954,109 @@ describe("orchestration v2 provider switching", () => {
     ),
   );
 
+  it.live("starts a full native transcript fresh instead of failing the returning switch", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const cwd = yield* checkpointWorkspace("provider-switch");
+        const capturedTurns = yield* Ref.make<ReadonlyArray<CapturedTurn>>([]);
+        const codexNativeThreadGeneration = yield* Ref.make(0);
+        const layerRegistry = ProviderAdapterRegistry.layerFromAdapters([
+          makeTestAdapter({
+            instanceId: ProviderInstanceId.make("codex"),
+            driver: CODEX_DRIVER,
+            capabilities: CodexProviderCapabilitiesV2,
+            modelSelection: CODEX_MODEL_SELECTION,
+            responseByRunOrdinal: { 1: "codex before switch", 3: "codex after return" },
+            capturedTurns,
+            nativeThreadGeneration: codexNativeThreadGeneration,
+            // The first Codex turn leaves its transcript with no room for the Claude delta.
+            tokenUsageByRunOrdinal: { 1: { usedTokens: 60_000, maxTokens: 64_000 } },
+          }),
+          makeTestAdapter({
+            instanceId: ProviderInstanceId.make("claudeAgent"),
+            driver: CLAUDE_DRIVER,
+            capabilities: ClaudeProviderCapabilitiesV2,
+            modelSelection: CLAUDE_MODEL_SELECTION,
+            responseByRunOrdinal: { 2: "claude switched response" },
+            capturedTurns,
+          }),
+        ]);
+        const dispatch = (suffix: string, text: string, modelSelection: ModelSelection) =>
+          ({
+            type: "message.dispatch",
+            createdBy: "user",
+            creationSource: "web",
+            commandId: CommandId.make(`command:transcript-full:${suffix}`),
+            threadId,
+            messageId: MessageId.make(`message:transcript-full:${suffix}`),
+            text,
+            attachments: [],
+            modelSelection,
+            dispatchMode: { type: "start_immediately" },
+          }) satisfies OrchestrationV2Command;
+
+        const projection = yield* Effect.gen(function* () {
+          const orchestrator = yield* Orchestrator.OrchestratorV2;
+          yield* orchestrator.dispatch({
+            type: "thread.create",
+            createdBy: "user",
+            creationSource: "web",
+            commandId: CommandId.make("command:transcript-full:create"),
+            threadId,
+            projectId,
+            title: "Full transcript",
+            modelSelection: CODEX_MODEL_SELECTION,
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+          });
+          yield* orchestrator.dispatch(dispatch("codex", firstPrompt, CODEX_MODEL_SELECTION));
+          yield* waitForIdle(threadId);
+          yield* orchestrator.dispatch(dispatch("claude", claudePrompt, CLAUDE_MODEL_SELECTION));
+          yield* waitForIdle(threadId);
+          yield* orchestrator.dispatch(dispatch("return", returnPrompt, CODEX_MODEL_SELECTION));
+          return yield* waitForIdle(threadId);
+        }).pipe(
+          Effect.provide(
+            ProviderReplayHarness.layerWithRegistry(
+              {
+                name: "provider-switch",
+                runtimePolicyOverride: {
+                  cwd,
+                  approvalPolicy: "never",
+                  sandboxPolicy: {
+                    type: "readOnly",
+                    access: { type: "fullAccess" },
+                    networkAccess: false,
+                  },
+                },
+              },
+              layerRegistry,
+            ),
+          ),
+        );
+        const turns = yield* Ref.get(capturedTurns);
+
+        assert.deepEqual(
+          projection.runs.map((run) => [run.providerInstanceId, run.status]),
+          [
+            ["codex", "completed"],
+            ["claudeAgent", "completed"],
+            ["codex", "completed"],
+          ],
+        );
+        // The full transcript was replaced once with a fresh native Codex thread.
+        assert.equal(yield* Ref.get(codexNativeThreadGeneration), 2);
+        assert.equal(turns[0]?.providerThreadId, turns[2]?.providerThreadId);
+        assert.include(turns[2]?.text ?? "", "Context handoff (full_thread_summary):");
+        assert.include(turns[2]?.text ?? "", "codex before switch");
+        assert.include(turns[2]?.text ?? "", "claude switched response");
+        assert.include(turns[2]?.text ?? "", returnPrompt);
+      }),
+    ),
+  );
+
   it.live("resolves a Claude fork into portable Codex context on first dispatch", () =>
     Effect.scoped(
       Effect.gen(function* () {

@@ -23,6 +23,7 @@ import {
   historyResponseItems,
   selectHistory,
   historicalMessage,
+  nativeTranscriptIsFull,
 } from "@t3tools/provider-core/server/handoffBudget";
 import { projectContextHandoffForWire } from "./WireProjection.ts";
 import { deliverContextHandoffs } from "./ContextHandoffDelivery.ts";
@@ -688,4 +689,31 @@ describe("handoff delivery", () => {
       assert.equal(calls, 0);
     }),
   );
+});
+
+describe("nativeTranscriptIsFull", () => {
+  const thread = (usage: OrchestrationV2ProviderThread["contextUsage"]) => ({
+    contextUsage: usage,
+  });
+
+  it("is full only when the measured transcript leaves no room for a handoff", () => {
+    assert.isTrue(
+      nativeTranscriptIsFull({ providerThread: thread({ usedTokens: 60_000, maxTokens: 64_000 }) }),
+    );
+    assert.isFalse(
+      nativeTranscriptIsFull({ providerThread: thread({ usedTokens: 20_000, maxTokens: 64_000 }) }),
+    );
+    // A larger known model window leaves room the reported maximum would not.
+    assert.isTrue(
+      nativeTranscriptIsFull({
+        providerThread: thread({ usedTokens: 150_000, maxTokens: 200_000 }),
+        modelContextWindow: 1_000_000,
+      }),
+    );
+  });
+
+  it("never replaces an unmeasured transcript", () => {
+    assert.isFalse(nativeTranscriptIsFull({ providerThread: thread(null) }));
+    assert.isFalse(nativeTranscriptIsFull({ providerThread: thread({ usedTokens: 0 }) }));
+  });
 });
