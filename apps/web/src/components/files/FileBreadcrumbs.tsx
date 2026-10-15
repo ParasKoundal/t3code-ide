@@ -20,6 +20,7 @@ import { useTheme } from "~/hooks/useTheme";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { cn } from "~/lib/utils";
 import { isAbsolutePath } from "@t3tools/shared/path";
+import type { DocumentSymbol } from "./symbolExtractor";
 
 import {
   type FileBreadcrumb,
@@ -36,6 +37,8 @@ interface FileBreadcrumbsProps {
   readonly projectName: string;
   readonly relativePath: string;
   readonly workspaceMutationId: string | null;
+  readonly symbols?: readonly DocumentSymbol[];
+  readonly onSelectSymbol?: ((symbol: DocumentSymbol) => void) | undefined;
 }
 
 function pathLabel(path: string, projectName: string): string {
@@ -265,6 +268,80 @@ function DirectoryBreadcrumb(props: FileBreadcrumbsProps & { readonly crumb: Fil
   );
 }
 
+function SymbolBreadcrumb(props: {
+  readonly symbols: readonly DocumentSymbol[];
+  readonly onSelectSymbol?: ((symbol: DocumentSymbol) => void) | undefined;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selectedSymbol, setSelectedSymbol] = useState<DocumentSymbol | null>(
+    props.symbols[0] ?? null,
+  );
+
+  if (props.symbols.length === 0) return null;
+
+  const current = selectedSymbol ?? props.symbols[0]!;
+
+  return (
+    <div className="flex min-w-0 shrink-0 items-center">
+      <ChevronRightIcon className="mx-1 size-3.5 shrink-0 text-muted-foreground/60" />
+      <Menu open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <MenuTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`Select symbol: ${current.name}`}
+                    className="relative flex max-w-48 cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-left text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-accent data-popup-open:text-foreground font-mono text-[11px]"
+                  />
+                }
+              />
+            }
+          >
+            <span className="truncate">{current.name}</span>
+          </TooltipTrigger>
+          <TooltipPopup side="top">
+            {current.kind}: {current.name} (line {current.line})
+          </TooltipPopup>
+        </Tooltip>
+        {open ? (
+          <MenuPopup align="start" side="bottom" className="max-h-60 overflow-y-auto">
+            <MenuGroup>
+              <MenuRadioGroup
+                value={String(current.line)}
+                onValueChange={(lineStr) => {
+                  const sym = props.symbols.find((s) => String(s.line) === lineStr);
+                  if (sym) {
+                    setSelectedSymbol(sym);
+                    props.onSelectSymbol?.(sym);
+                  }
+                  setOpen(false);
+                }}
+              >
+                {props.symbols.map((sym) => (
+                  <MenuRadioItem
+                    key={`${sym.name}:${sym.line}`}
+                    value={String(sym.line)}
+                    closeOnClick
+                  >
+                    <span className="flex min-w-0 items-center justify-between gap-2 w-full">
+                      <span className="truncate font-mono text-xs">{sym.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        :{sym.line}
+                      </span>
+                    </span>
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+            </MenuGroup>
+          </MenuPopup>
+        ) : null}
+      </Menu>
+    </div>
+  );
+}
+
 export function FileBreadcrumbs(props: FileBreadcrumbsProps) {
   const hostPath = isAbsolutePath(props.relativePath);
   const breadcrumbs = useMemo(
@@ -272,24 +349,31 @@ export function FileBreadcrumbs(props: FileBreadcrumbsProps) {
     [props.projectName, props.relativePath],
   );
 
-  return breadcrumbs.map((crumb, index) => (
-    <div
-      key={crumb.path || "project"}
-      className="flex min-w-0 shrink-0 items-center"
-      data-current-file-crumb={crumb.kind === "file"}
-    >
-      {index > 0 ? (
-        <ChevronRightIcon className="mx-1 size-3.5 shrink-0 text-muted-foreground/60" />
+  return (
+    <>
+      {breadcrumbs.map((crumb, index) => (
+        <div
+          key={crumb.path || "project"}
+          className="flex min-w-0 shrink-0 items-center"
+          data-current-file-crumb={crumb.kind === "file"}
+        >
+          {index > 0 ? (
+            <ChevronRightIcon className="mx-1 size-3.5 shrink-0 text-muted-foreground/60" />
+          ) : null}
+          {crumb.kind === "file" ? (
+            <span aria-current="page">
+              <BreadcrumbLabel current label={crumb.label} pathLabel={crumb.path} />
+            </span>
+          ) : hostPath ? (
+            <BreadcrumbLabel label={crumb.label} pathLabel={crumb.path} />
+          ) : (
+            <DirectoryBreadcrumb {...props} crumb={crumb} />
+          )}
+        </div>
+      ))}
+      {props.symbols && props.symbols.length > 0 ? (
+        <SymbolBreadcrumb symbols={props.symbols} onSelectSymbol={props.onSelectSymbol} />
       ) : null}
-      {crumb.kind === "file" ? (
-        <span aria-current="page">
-          <BreadcrumbLabel current label={crumb.label} pathLabel={crumb.path} />
-        </span>
-      ) : hostPath ? (
-        <BreadcrumbLabel label={crumb.label} pathLabel={crumb.path} />
-      ) : (
-        <DirectoryBreadcrumb {...props} crumb={crumb} />
-      )}
-    </div>
-  ));
+    </>
+  );
 }

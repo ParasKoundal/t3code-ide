@@ -46,6 +46,9 @@ import { areAllDirectoriesExpanded, setAllDirectoriesExpanded } from "./fileTree
 import { buildFileTreePathUpdates } from "./fileTreePathReconciliation";
 import { useDirectoryEntries } from "./useDirectoryEntries";
 import { useProjectPathSearch } from "~/state/queries";
+import { vcsEnvironment } from "~/state/vcs";
+import { useEnvironmentQuery } from "~/state/query";
+import { buildGitStatusMap, getDirectoryGitChangeCount } from "./gitStatusDecorations";
 
 interface FileBrowserPanelProps {
   environmentId: EnvironmentId;
@@ -142,6 +145,16 @@ export default function FileBrowserPanel({
   } = useDirectoryEntries(environmentId, cwd);
   const [query, setQuery] = useState("");
   const [expandAll, setExpandAll] = useState(false);
+  const gitStatusQuery = useEnvironmentQuery(
+    vcsEnvironment.status({
+      environmentId,
+      input: { cwd, includeRemote: false },
+    }),
+  );
+  const gitStatusMap = useMemo(
+    () => buildGitStatusMap(gitStatusQuery.data?.workingTree.files),
+    [gitStatusQuery.data?.workingTree.files],
+  );
   const pathSearch = useProjectPathSearch({ environmentId, cwd, query: query.slice(0, 256) }, 200);
   const entries = useMemo(() => {
     const result = new Map(directoryEntries.map((entry) => [entry.path, entry]));
@@ -406,12 +419,48 @@ export default function FileBrowserPanel({
       }
     },
     paths: [],
-    renderRowDecoration: ({ item, row }) =>
-      row.kind === "directory" &&
-      row.isExpanded &&
-      loadingDirectoriesRef.current.has(item.path.replace(/\/$/, ""))
-        ? { icon: "t3-tree-icon-loading", title: "Loading…" }
-        : null,
+    renderRowDecoration: ({ item, row }) => {
+      const cleanPath = item.path.replace(/\/$/, "");
+      if (
+        row.kind === "directory" &&
+        row.isExpanded &&
+        loadingDirectoriesRef.current.has(cleanPath)
+      ) {
+        return { icon: "t3-tree-icon-loading", title: "Loading…" };
+      }
+      const gitItem = gitStatusMap.get(cleanPath);
+      if (gitItem) {
+        if (gitItem.status === "added") {
+          return {
+            text: "A",
+            parts: [{ text: "A", color: "#10b981" }],
+            title: `Added (+${gitItem.insertions})`,
+          };
+        }
+        if (gitItem.status === "deleted") {
+          return {
+            text: "D",
+            parts: [{ text: "D", color: "#ef4444" }],
+            title: `Deleted (-${gitItem.deletions})`,
+          };
+        }
+        return {
+          text: "M",
+          parts: [{ text: "M", color: "#f59e0b" }],
+          title: `Modified (+${gitItem.insertions}, -${gitItem.deletions})`,
+        };
+      }
+      if (row.kind === "directory") {
+        const count = getDirectoryGitChangeCount(gitStatusMap, cleanPath);
+        if (count > 0) {
+          return {
+            text: `• ${count}`,
+            title: `${count} modified files`,
+          };
+        }
+      }
+      return null;
+    },
     search: false,
     onSearchChange: (value) => setQuery(value ?? ""),
     unsafeCSS: PIERRE_TREE_UNSAFE_CSS,
@@ -422,6 +471,10 @@ export default function FileBrowserPanel({
     // Re-render the rows with the current options so decorations update.
     model.setComposition(model.getComposition());
   }, [loadingDirectories, model]);
+
+  useEffect(() => {
+    model.setComposition(model.getComposition());
+  }, [gitStatusMap, model]);
   const search = useFileTreeSearch(model);
   const allDirectoriesExpanded = useFileTreeSelector(model, (currentModel) =>
     areAllDirectoriesExpanded(currentModel, directoryPaths),
