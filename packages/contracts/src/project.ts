@@ -455,6 +455,7 @@ export const ProjectFileFailure = Schema.Literals([
   "path_not_file",
   "binary_file",
   "operation_failed",
+  "path_exists",
 ]);
 export type ProjectFileFailure = typeof ProjectFileFailure.Type;
 
@@ -467,6 +468,8 @@ export const ProjectFileOperation = Schema.Literals([
   "close",
   "make-directory",
   "write-file",
+  "rename",
+  "remove",
 ]);
 export type ProjectFileOperation = typeof ProjectFileOperation.Type;
 
@@ -517,6 +520,72 @@ export const ProjectWriteFileResult = Schema.Struct({
   relativePath: TrimmedNonEmptyString,
 });
 export type ProjectWriteFileResult = typeof ProjectWriteFileResult.Type;
+
+const ProjectEntryPath = TrimmedNonEmptyString.check(
+  Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH),
+);
+
+/** Explorer edits to a project's files and folders. Paths are relative to `cwd`. */
+export const ProjectEntryOperationInput = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("create-file"),
+    cwd: TrimmedNonEmptyString,
+    relativePath: ProjectEntryPath,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("create-directory"),
+    cwd: TrimmedNonEmptyString,
+    relativePath: ProjectEntryPath,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("rename"),
+    cwd: TrimmedNonEmptyString,
+    relativePath: ProjectEntryPath,
+    newRelativePath: ProjectEntryPath,
+  }),
+  // Removes a folder with everything in it.
+  Schema.Struct({
+    type: Schema.Literal("delete"),
+    cwd: TrimmedNonEmptyString,
+    relativePath: ProjectEntryPath,
+  }),
+]);
+export type ProjectEntryOperationInput = typeof ProjectEntryOperationInput.Type;
+
+export const ProjectEntryOperationResult = Schema.Struct({
+  /** The entry's path after the operation: the new path for a rename. */
+  relativePath: TrimmedNonEmptyString,
+});
+export type ProjectEntryOperationResult = typeof ProjectEntryOperationResult.Type;
+
+export class ProjectEntryOperationError extends Schema.TaggedError<ProjectEntryOperationError>()(
+  "ProjectEntryOperationError",
+  {
+    cwd: Schema.optional(TrimmedNonEmptyString),
+    relativePath: Schema.optional(TrimmedNonEmptyString),
+    failure: Schema.optional(ProjectFileFailure),
+    resolvedPath: Schema.optional(TrimmedNonEmptyString),
+    resolvedWorkspaceRoot: Schema.optional(TrimmedNonEmptyString),
+    operation: Schema.optional(ProjectFileOperation),
+    operationPath: Schema.optional(TrimmedNonEmptyString),
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  // @effect-diagnostics-next-line overriddenSchemaConstructor:off
+  constructor(props: ProjectFileFailureContext) {
+    super({
+      ...props,
+      message:
+        decodedProjectErrorMessage(props) ??
+        (props.failure === "path_exists"
+          ? `'${props.relativePath}' already exists.`
+          : props.failure === "workspace_path_outside_root"
+            ? `'${props.relativePath}' is not inside the project folder.`
+            : `Could not change '${props.relativePath}' in '${props.cwd}'.`),
+    } as any);
+  }
+}
 
 /** The environment's Scratch project, created on first request. */
 export const ProjectEnsureScratchResult = Schema.Struct({

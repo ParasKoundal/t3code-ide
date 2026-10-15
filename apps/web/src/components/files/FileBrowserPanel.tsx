@@ -3,7 +3,14 @@ import type {
   ContextMenuItem as TreeContextMenuItem,
   ContextMenuOpenContext as TreeContextMenuOpenContext,
 } from "@pierre/trees";
-import type { EnvironmentId, ProjectEntry } from "@t3tools/contracts";
+import {
+  AuthFilesystemWriteScope,
+  type EnvironmentId,
+  type ProjectEntry,
+  type ProjectEntryOperationInput,
+} from "@t3tools/contracts";
+import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import { FilePlusIcon, FolderPlusIcon } from "lucide-react";
 import { FileTree, useFileTree, useFileTreeSearch, useFileTreeSelector } from "@pierre/trees/react";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide";
@@ -20,6 +27,17 @@ import { useTheme } from "~/hooks/useTheme";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { useFileContextMenu, type FileContextMenuAction } from "~/fileContextMenu";
 import { readLocalApi } from "~/localApi";
+import { projectEnvironment } from "~/state/projects";
+import { useEnvironmentScope } from "~/state/session";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { EntryNameDialog, type EntryNameRequest } from "./EntryNameDialog";
+import {
+  entryBaseName,
+  entryParentDirectory,
+  joinEntryPath,
+  renamedEntryPath,
+  type TreeEntryKind,
+} from "./fileTreeEntryActions";
 import { T3_PIERRE_ICONS } from "~/pierre-icons";
 import { PIERRE_TREE_UNSAFE_CSS, pierreTreeStyle } from "~/pierre-tree-theme";
 
@@ -108,6 +126,11 @@ export default function FileBrowserPanel({
   const { resolvedTheme } = useTheme();
   const composerRef = useComposerHandleContext();
   const fileContextMenu = useFileContextMenu(environmentId);
+  const canWriteFiles = useEnvironmentScope(environmentId, AuthFilesystemWriteScope);
+  const entryOperation = useAtomCommand(projectEnvironment.entryOperation, {
+    reportFailure: false,
+  });
+  const [namePrompt, setNamePrompt] = useState<EntryNameRequest | null>(null);
   const {
     entries: directoryEntries,
     load,
@@ -161,6 +184,75 @@ export default function FileBrowserPanel({
     return () => document.removeEventListener("contextmenu", capturePointer, true);
   }, []);
 
+  /** Runs an explorer change and refreshes the tree. Returns the new path, or an error message. */
+  const runEntryOperation = async (
+    input: ProjectEntryOperationInput,
+  ): Promise<{ relativePath: string } | { error: string }> => {
+    const result = await entryOperation({ environmentId, input });
+    if (result._tag === "Failure") {
+      const failure = squashAtomCommandFailure(result);
+      return {
+        error: failure instanceof Error ? failure.message : "The change could not be made.",
+      };
+    }
+    refresh();
+    if (query.trim()) pathSearch.refresh();
+    return result.value;
+  };
+  const promptCreateEntry = (kind: TreeEntryKind, directory: string) =>
+    setNamePrompt({
+      title: kind === "file" ? "New file" : "New folder",
+      description: `In ${directory.length > 0 ? `${directory}/` : projectName}. Use / to nest folders.`,
+      initialValue: "",
+      submitLabel: "Create",
+      onSubmit: async (name) => {
+        const outcome = await runEntryOperation({
+          type: kind === "file" ? "create-file" : "create-directory",
+          cwd,
+          relativePath: joinEntryPath(directory, name),
+        });
+        if ("error" in outcome) return outcome.error;
+        if (kind === "file") onOpenFile(outcome.relativePath);
+        return null;
+      },
+    });
+  const promptRenameEntry = (path: string, kind: TreeEntryKind) =>
+    setNamePrompt({
+      title: kind === "file" ? "Rename file" : "Rename folder",
+      description: `Renaming ${path}. Use / to move it into a folder.`,
+      initialValue: entryBaseName(path),
+      submitLabel: "Rename",
+      onSubmit: async (name) => {
+        const newRelativePath = renamedEntryPath(path, name);
+        if (newRelativePath === path) return null;
+        const outcome = await runEntryOperation({
+          type: "rename",
+          cwd,
+          relativePath: path,
+          newRelativePath,
+        });
+        if ("error" in outcome) return outcome.error;
+        // Keep the open file open under its new name.
+        if (kind === "file" && selectedPath === path) onOpenFile(outcome.relativePath);
+        return null;
+      },
+    });
+  const deleteEntry = async (path: string, kind: TreeEntryKind) => {
+    const confirmed = await readLocalApi()?.dialogs.confirm(
+      `Delete ${entryBaseName(path)}?\n${
+        kind === "directory"
+          ? `The folder ${path} and everything in it will be deleted.`
+          : `${path} will be deleted.`
+      } This cannot be undone.`,
+      { variant: "destructive" },
+    );
+    if (!confirmed) return;
+    const outcome = await runEntryOperation({ type: "delete", cwd, relativePath: path });
+    if ("error" in outcome) {
+      toastManager.add({ type: "error", title: "Could not delete", description: outcome.error });
+    }
+  };
+
   /** Combines the file actions (open/reveal/open with) with the panel's own mention actions. */
   const showEntryContextMenu = async (
     item: TreeContextMenuItem,
@@ -181,16 +273,43 @@ export default function FileBrowserPanel({
       : { x: anchorRect.left, y: anchorRect.bottom };
     const fileTarget = { environmentId, filePath: relativePath, workspaceRoot: cwd };
     const fileMenuItems = fileContextMenu.buildItems(fileTarget);
+    const entryKind: TreeEntryKind =
+      item.path.endsWith("/") || entryKindsRef.current.get(relativePath) === "directory"
+        ? "directory"
+        : "file";
     try {
       const clicked = await api.contextMenu.show(
         [
           ...fileMenuItems,
           { id: "copy-mention", label: "Copy mention" },
           { id: "add-to-chat", label: "Add to chat" },
+          ...(canWriteFiles
+            ? [
+                { id: "new-file", label: "New file…", separatorBefore: true },
+                { id: "new-folder", label: "New folder…" },
+                { id: "rename", label: "Rename…" },
+                { id: "delete", label: "Delete", destructive: true },
+              ]
+            : []),
         ],
         position,
       );
       if (clicked === null) return;
+      if (clicked === "new-file" || clicked === "new-folder") {
+        promptCreateEntry(
+          clicked === "new-file" ? "file" : "directory",
+          entryParentDirectory(relativePath, entryKind),
+        );
+        return;
+      }
+      if (clicked === "rename") {
+        promptRenameEntry(relativePath, entryKind);
+        return;
+      }
+      if (clicked === "delete") {
+        await deleteEntry(relativePath, entryKind);
+        return;
+      }
       // "Open with" submenu selections report the child id ("editor:<id>"),
       // which is not present in the top-level item list.
       const isFileMenuAction =
@@ -516,6 +635,42 @@ export default function FileBrowserPanel({
           onValueChange={handleSearchValueChange}
           onClose={closeSearch}
         />
+        {canWriteFiles ? (
+          <>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label="New file"
+                    onClick={() => promptCreateEntry("file", "")}
+                  />
+                }
+              >
+                <FilePlusIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup>New file</TooltipPopup>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label="New folder"
+                    onClick={() => promptCreateEntry("directory", "")}
+                  />
+                }
+              >
+                <FolderPlusIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup>New folder</TooltipPopup>
+            </Tooltip>
+          </>
+        ) : null}
         {directoryPaths.length > 0 ? (
           <Tooltip>
             <TooltipTrigger
@@ -569,6 +724,9 @@ export default function FileBrowserPanel({
         className="min-h-0 flex-1 overflow-hidden"
         style={pierreTreeStyle(resolvedTheme)}
       />
+      {namePrompt ? (
+        <EntryNameDialog request={namePrompt} onClose={() => setNamePrompt(null)} />
+      ) : null}
     </div>
   );
 }

@@ -430,4 +430,80 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
   });
+
+  describe("entryOperation", () => {
+    it.effect("creates files and folders without replacing existing ones", () =>
+      Effect.gen(function* () {
+        const service = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+
+        yield* service.entryOperation({ type: "create-file", cwd, relativePath: "src/new.ts" });
+        yield* service.entryOperation({ type: "create-directory", cwd, relativePath: "docs/api" });
+        expect(yield* fs.readFileString(path.join(cwd, "src/new.ts"))).toBe("");
+        expect((yield* fs.stat(path.join(cwd, "docs/api"))).type).toBe("Directory");
+
+        yield* writeTextFile(cwd, "src/new.ts", "keep me");
+        const error = yield* service
+          .entryOperation({ type: "create-file", cwd, relativePath: "src/new.ts" })
+          .pipe(Effect.flip);
+        expect(error._tag).toBe("WorkspacePathExistsError");
+        expect(yield* fs.readFileString(path.join(cwd, "src/new.ts"))).toBe("keep me");
+      }),
+    );
+
+    it.effect("renames into new folders but never over an existing entry", () =>
+      Effect.gen(function* () {
+        const service = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "a.ts", "a");
+        yield* writeTextFile(cwd, "b.ts", "b");
+
+        const moved = yield* service.entryOperation({
+          type: "rename",
+          cwd,
+          relativePath: "a.ts",
+          newRelativePath: "lib/a.ts",
+        });
+        expect(moved.relativePath).toBe("lib/a.ts");
+        expect(yield* fs.readFileString(path.join(cwd, "lib/a.ts"))).toBe("a");
+        expect(yield* fs.exists(path.join(cwd, "a.ts"))).toBe(false);
+
+        const error = yield* service
+          .entryOperation({
+            type: "rename",
+            cwd,
+            relativePath: "b.ts",
+            newRelativePath: "lib/a.ts",
+          })
+          .pipe(Effect.flip);
+        expect(error._tag).toBe("WorkspacePathExistsError");
+        expect(yield* fs.readFileString(path.join(cwd, "lib/a.ts"))).toBe("a");
+      }),
+    );
+
+    it.effect("deletes folders recursively but refuses the root and paths outside it", () =>
+      Effect.gen(function* () {
+        const service = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "old/nested/file.ts", "x");
+
+        yield* service.entryOperation({ type: "delete", cwd, relativePath: "old" });
+        expect(yield* fs.exists(path.join(cwd, "old"))).toBe(false);
+
+        for (const relativePath of [".", "..", "../outside"]) {
+          const error = yield* service
+            .entryOperation({ type: "delete", cwd, relativePath })
+            .pipe(Effect.flip);
+          expect(error._tag).toBe("WorkspacePathOutsideRootError");
+        }
+        expect(yield* fs.exists(cwd)).toBe(true);
+      }),
+    );
+  });
 });
