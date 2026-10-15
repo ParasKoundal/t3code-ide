@@ -2851,7 +2851,14 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
           role: "Viewer",
         },
       ],
-      ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
+      // Unsigned builds are signed ad-hoc. Packaging breaks the signature that
+      // ships with Electron, and Apple Silicon reports an app with a broken
+      // signature as "damaged" rather than offering to open it. Ad-hoc signing
+      // requires hardened runtime off, or library validation rejects Electron's
+      // own frameworks.
+      ...(signed
+        ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") }
+        : { identity: "-", hardenedRuntime: false }),
       ...(macPasskeySigning
         ? {
             entitlements: macPasskeySigning.entitlementsPath,
