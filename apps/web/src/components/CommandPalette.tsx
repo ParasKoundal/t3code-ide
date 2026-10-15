@@ -58,6 +58,7 @@ import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import {
   ArrowLeftIcon,
+  BlocksIcon,
   ChartNoAxesColumnIcon,
   CheckIcon,
   ChevronRightIcon,
@@ -65,6 +66,7 @@ import {
   FileSearchIcon,
   FolderGit2Icon,
   FolderIcon,
+  CodeIcon,
   FolderPlusIcon,
   MessageSquareDashedIcon,
   LinkIcon,
@@ -152,6 +154,7 @@ import {
   selectActiveRightPanel,
   useRightPanelStore,
 } from "../rightPanelStore";
+import { useIdeLayoutStore } from "../ideLayoutStore";
 import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
 import {
   cn,
@@ -1870,6 +1873,21 @@ function OpenCommandPaletteDialog(props: {
     });
   }
 
+  if (activeThreadId) {
+    const ideLayoutEnabled = useIdeLayoutStore.getState().enabled;
+    actionItems.push({
+      kind: "action",
+      value: "action:toggle-ide-layout",
+      title: ideLayoutEnabled ? "Exit IDE layout" : "Switch to IDE layout",
+      searchTerms: ["ide", "editor", "layout", "explorer", "code", "files", "workbench"],
+      icon: <CodeIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "layout.toggleIde",
+      run: async () => {
+        useIdeLayoutStore.getState().toggle();
+      },
+    });
+  }
+
   // Read once per open: the palette is a snapshot of the composer, not a live view of it.
   const promptLinkTarget = paletteRouteTarget
     ? paletteRouteTarget.kind === "server"
@@ -1966,6 +1984,25 @@ function OpenCommandPaletteDialog(props: {
 
   if (activeThread !== null) {
     const thread = activeThread;
+    const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+    actionItems.push({
+      kind: "action",
+      value: "action:open-extensions",
+      searchTerms: [
+        "extensions",
+        "plugins",
+        "marketplace",
+        "vsx",
+        "open vsx",
+        "themes",
+        "languages",
+      ],
+      title: "View: Show Extensions",
+      icon: <BlocksIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        useRightPanelStore.getState().open(threadRef, "extensions");
+      },
+    });
     actionItems.push({
       kind: "action",
       value: "action:restart-agent-session",

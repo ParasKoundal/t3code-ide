@@ -235,6 +235,9 @@ import {
   ProjectWriteFileError,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
+  ProjectEntryOperationError,
+  ProjectEntryOperationInput,
+  ProjectEntryOperationResult,
 } from "./project.ts";
 import {
   TerminalAttachInput,
@@ -368,6 +371,14 @@ import {
 } from "./sourceControl.ts";
 import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
+import {
+  LanguageServerDefinitionResult,
+  LanguageServerDiagnosticsEvent,
+  LanguageServerDocumentInput,
+  LanguageServerError,
+  LanguageServerHoverResult,
+  LanguageServerPositionInput,
+} from "./languageServer.ts";
 
 export const WS_METHODS = {
   // Project registry methods
@@ -379,6 +390,12 @@ export const WS_METHODS = {
   projectsSearchContents: "projects.searchContents",
   projectsSearchEntries: "projects.searchEntries",
   projectsWriteFile: "projects.writeFile",
+  projectsEntryOperation: "projects.entryOperation",
+
+  // Language server methods
+  languageServerDiagnostics: "languageServer.diagnostics",
+  languageServerHover: "languageServer.hover",
+  languageServerDefinition: "languageServer.definition",
   projectsMutate: "projects.mutate",
   projectsEnsureScratch: "projects.ensureScratch",
   projectsCreateNew: "projects.createNew",
@@ -1239,6 +1256,31 @@ const WsProjectsWriteFileRpc = Rpc.make(WS_METHODS.projectsWriteFile, {
   error: Schema.Union([ProjectWriteFileError, EnvironmentAuthorizationError]),
 });
 
+const WsProjectsEntryOperationRpc = Rpc.make(WS_METHODS.projectsEntryOperation, {
+  payload: ProjectEntryOperationInput,
+  success: ProjectEntryOperationResult,
+  error: Schema.Union([ProjectEntryOperationError, EnvironmentAuthorizationError]),
+});
+
+const WsLanguageServerDiagnosticsRpc = Rpc.make(WS_METHODS.languageServerDiagnostics, {
+  payload: LanguageServerDocumentInput,
+  success: LanguageServerDiagnosticsEvent,
+  error: Schema.Union([LanguageServerError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+const WsLanguageServerHoverRpc = Rpc.make(WS_METHODS.languageServerHover, {
+  payload: LanguageServerPositionInput,
+  success: LanguageServerHoverResult,
+  error: Schema.Union([LanguageServerError, EnvironmentAuthorizationError]),
+});
+
+const WsLanguageServerDefinitionRpc = Rpc.make(WS_METHODS.languageServerDefinition, {
+  payload: LanguageServerPositionInput,
+  success: LanguageServerDefinitionResult,
+  error: Schema.Union([LanguageServerError, EnvironmentAuthorizationError]),
+});
+
 const WsProjectsMutateRpc = Rpc.make(WS_METHODS.projectsMutate, {
   payload: ProjectMutation,
   success: Project,
@@ -1987,6 +2029,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsEnsureScratchRpc,
   WsProjectsCreateNewRpc,
   WsProjectsWriteFileRpc,
+  WsProjectsEntryOperationRpc,
+  WsLanguageServerDiagnosticsRpc,
+  WsLanguageServerHoverRpc,
+  WsLanguageServerDefinitionRpc,
   WsProjectsMutateRpc,
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,

@@ -16,6 +16,8 @@ import type {
   FilesystemEntryMetadata,
   FilesystemGetMetadataInput,
   FilesystemGetMetadataResult,
+  ProjectEntryOperationInput,
+  ProjectEntryOperationResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
   ProjectWriteFileInput,
@@ -52,6 +54,8 @@ export class WorkspaceFileSystemOperationError extends Schema.TaggedError<Worksp
       "close",
       "make-directory",
       "write-file",
+      "rename",
+      "remove",
     ]),
     cause: Schema.Defect(),
   },
@@ -101,8 +105,22 @@ export class WorkspaceBinaryFileError extends Schema.TaggedError<WorkspaceBinary
   }
 }
 
+export class WorkspacePathExistsError extends Schema.TaggedError<WorkspacePathExistsError>()(
+  "WorkspacePathExistsError",
+  {
+    workspaceRoot: Schema.String,
+    relativePath: Schema.String,
+    resolvedPath: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Workspace path '${this.relativePath}' in '${this.workspaceRoot}' already exists.`;
+  }
+}
+
 export const WorkspaceFileSystemError = Schema.Union([
   WorkspaceFileSystemOperationError,
+  WorkspacePathExistsError,
   WorkspaceFilePathEscapeError,
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
@@ -137,6 +155,16 @@ export class WorkspaceFileSystem extends Context.Service<
       input: ProjectWriteFileInput,
     ) => Effect.Effect<
       ProjectWriteFileResult,
+      WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
+    >;
+    /**
+     * Create, rename, or delete a file or folder inside the workspace root.
+     * Creating and renaming never replace an existing path.
+     */
+    readonly entryOperation: (
+      input: ProjectEntryOperationInput,
+    ) => Effect.Effect<
+      ProjectEntryOperationResult,
       WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
     >;
   }
@@ -395,7 +423,88 @@ export const make = Effect.gen(function* () {
     return { relativePath: target.relativePath };
   });
 
-  return WorkspaceFileSystem.of({ getMetadata, readFile, writeFile });
+  const entryOperation: WorkspaceFileSystem["Service"]["entryOperation"] = Effect.fn(
+    "WorkspaceFileSystem.entryOperation",
+  )(function* (input) {
+    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+    const operationError =
+      (operation: WorkspaceFileSystemOperationError["operation"], operationPath: string) =>
+      (cause: unknown) =>
+        new WorkspaceFileSystemOperationError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+          resolvedPath: target.absolutePath,
+          operationPath,
+          operation,
+          cause,
+        });
+    const ensureAbsent = (resolved: { absolutePath: string; relativePath: string }) =>
+      fileSystem.exists(resolved.absolutePath).pipe(
+        Effect.mapError(operationError("stat", resolved.absolutePath)),
+        Effect.flatMap((exists) =>
+          exists
+            ? Effect.fail(
+                new WorkspacePathExistsError({
+                  workspaceRoot: input.cwd,
+                  relativePath: resolved.relativePath,
+                  resolvedPath: resolved.absolutePath,
+                }),
+              )
+            : Effect.void,
+        ),
+      );
+    const makeParent = (absolutePath: string) =>
+      fileSystem
+        .makeDirectory(path.dirname(absolutePath), { recursive: true })
+        .pipe(Effect.mapError(operationError("make-directory", path.dirname(absolutePath))));
+
+    let resultPath = target.relativePath;
+    switch (input.type) {
+      case "create-file":
+        yield* ensureAbsent(target);
+        yield* makeParent(target.absolutePath);
+        // `wx` fails rather than truncating a file created since the check.
+        yield* fileSystem
+          .writeFileString(target.absolutePath, "", { flag: "wx" })
+          .pipe(Effect.mapError(operationError("write-file", target.absolutePath)));
+        break;
+      case "create-directory":
+        yield* ensureAbsent(target);
+        yield* fileSystem
+          .makeDirectory(target.absolutePath, { recursive: true })
+          .pipe(Effect.mapError(operationError("make-directory", target.absolutePath)));
+        break;
+      case "rename": {
+        const destination = yield* workspacePaths.resolveRelativePathWithinRoot({
+          workspaceRoot: input.cwd,
+          relativePath: input.newRelativePath,
+        });
+        if (destination.absolutePath === target.absolutePath) break;
+        // A case-only rename on a case-insensitive disk resolves to the same entry.
+        if (destination.absolutePath.toLowerCase() !== target.absolutePath.toLowerCase()) {
+          yield* ensureAbsent(destination);
+        }
+        yield* makeParent(destination.absolutePath);
+        yield* fileSystem
+          .rename(target.absolutePath, destination.absolutePath)
+          .pipe(Effect.mapError(operationError("rename", destination.absolutePath)));
+        resultPath = destination.relativePath;
+        break;
+      }
+      case "delete":
+        yield* fileSystem
+          .remove(target.absolutePath, { recursive: true })
+          .pipe(Effect.mapError(operationError("remove", target.absolutePath)));
+        break;
+    }
+    yield* workspaceEntries.refresh(input.cwd);
+    return { relativePath: resultPath };
+  });
+
+  return WorkspaceFileSystem.of({ getMetadata, readFile, writeFile, entryOperation });
 });
 
 export const layer = Layer.effect(WorkspaceFileSystem, make);

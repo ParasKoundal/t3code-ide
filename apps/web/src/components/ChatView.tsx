@@ -153,6 +153,7 @@ import { Debouncer } from "@tanstack/react-pacer";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import {
+  type CSSProperties,
   Fragment,
   lazy,
   memo,
@@ -463,10 +464,17 @@ import { useRemoteOpenState } from "~/remoteOpen";
 import { shouldShowOpenInPicker } from "./chat/OpenInPicker.logic";
 import { useOpenFavoriteEditorShortcut } from "./chat/OpenInPickerShortcut";
 import {
+  IdeLayoutControl,
   PanelLayoutControls,
   type PanelLayoutControlsProps,
   RightPanelMaximizeControl,
 } from "./chat/PanelLayoutControls";
+import { useIdeLayoutStore } from "../ideLayoutStore";
+import { parseWorkspaceScopeKey, useWorkspaceStore } from "../workspaceStore";
+import { resolveWorkspaceRootFile, type WorkspaceRoot } from "./files/workspaceRoots";
+import { resolveWorkspaceFilePath } from "@t3tools/shared/path";
+import { RESIZABLE_WIDTH_PROPERTY, useResizableWidth } from "~/hooks/useResizableWidth";
+import { RightPanelResizeHandle } from "./preview/RightPanelResizeHandle";
 import { expandedImageKey, type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { ThreadDetailsPanel, type ThreadDetailsPanelProps } from "./chat/ThreadDetailsPanel";
 import { NoActiveThreadState } from "./NoActiveThreadState";
@@ -717,6 +725,13 @@ const DevicePanel = lazy(() =>
   import("./device/DevicePanel").then((module) => ({ default: module.DevicePanel })),
 );
 const FilePreviewPanel = lazy(() => import("./files/FilePreviewPanel"));
+const EMPTY_WORKSPACE_ROOTS: readonly WorkspaceRoot[] = [];
+const IdeExplorer = lazy(() =>
+  import("./files/IdeExplorer").then((module) => ({ default: module.IdeExplorer })),
+);
+const ExtensionsPanel = lazy(() =>
+  import("./extensions/ExtensionsPanel").then((module) => ({ default: module.ExtensionsPanel })),
+);
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
 const TYPE_TO_FOCUS_EDITABLE_SELECTOR = [
   "input",
@@ -2400,6 +2415,32 @@ export default function ChatView(props: ChatViewProps) {
   );
   const canMaximizeRightPanel = rightPanelOpen && !shouldUsePlanSidebarSheet;
   const rightPanelMaximized = canMaximizeRightPanel && rightPanelState.maximized === true;
+  // IDE layout: the panel is the editor stage and the chat docks beside it. It
+  // applies only while the panel is open, so closing the panel returns to chat.
+  const ideLayoutEnabled = useIdeLayoutStore((state) => state.enabled);
+  const ideLayoutActive =
+    ideLayoutEnabled && rightPanelOpen && !shouldUsePlanSidebarSheet && activeThreadRef !== null;
+  const ideChatDock = useResizableWidth({
+    storageKey: "t3code:ide-chat-width",
+    defaultWidth: 440,
+    minWidth: 340,
+    maxWidth: 760,
+    edge: "right",
+  });
+  // Entering IDE layout, or arriving at another thread in it, shows the editor
+  // stage. Closing the panel afterwards is respected until the next thread switch.
+  const ideShownThreadKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ideLayoutEnabled || !activeThreadRef || !activeThreadKey || shouldUsePlanSidebarSheet) {
+      ideShownThreadKeyRef.current = null;
+      return;
+    }
+    if (ideShownThreadKeyRef.current === activeThreadKey) return;
+    ideShownThreadKeyRef.current = activeThreadKey;
+    const store = useRightPanelStore.getState();
+    if (store.byThreadKey[activeThreadKey]?.isOpen === true) return;
+    store.show(activeThreadRef);
+  }, [activeThreadKey, activeThreadRef, ideLayoutEnabled, shouldUsePlanSidebarSheet]);
   const inlineRightPanelOwnsTitleBar = rightPanelOpen && !shouldUsePlanSidebarSheet;
   const [threadPanelPresentation, setThreadPanelPresentation] =
     useState<ThreadPanelPresentation>("inline");
@@ -4242,6 +4283,49 @@ export default function ChatView(props: ChatViewProps) {
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
   const activeThreadWorktreePath = activeThread?.worktreePath ?? null;
   const activeWorkspaceRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
+  // A sidebar workspace that includes this thread's project adds the other
+  // member folders on this machine to the explorer, and makes their files
+  // editable here.
+  const sidebarScopeKey = useUiStateStore((store) => store.sidebarProjectScopeKey);
+  const ideWorkspace = useWorkspaceStore((store) => {
+    const workspaceId = parseWorkspaceScopeKey(sidebarScopeKey);
+    if (workspaceId === null || !activeProject) return null;
+    const workspace = store.workspaces.find((candidate) => candidate.id === workspaceId) ?? null;
+    return workspace?.projectRefKeys.includes(`${activeProject.environmentId}:${activeProject.id}`)
+      ? workspace
+      : null;
+  });
+  const ideWorkspaceRoots = useMemo<readonly WorkspaceRoot[]>(() => {
+    if (!ideWorkspace || !activeProject) return EMPTY_WORKSPACE_ROOTS;
+    const members = new Set(ideWorkspace.projectRefKeys);
+    const roots = allProjects
+      .filter(
+        (project) =>
+          project.environmentId === activeProject.environmentId &&
+          project.id !== activeProject.id &&
+          members.has(`${project.environmentId}:${project.id}`),
+      )
+      .map((project) => ({ cwd: project.workspaceRoot, title: project.title }));
+    return roots.length > 0 ? roots : EMPTY_WORKSPACE_ROOTS;
+  }, [activeProject, allProjects, ideWorkspace]);
+  // Absolute paths (from another workspace root, or a go-to-definition target)
+  // are mapped back to the folder that contains them so they stay editable. The
+  // thread's own folder counts too, so a definition in it opens like any file.
+  const rightPanelFileRoot =
+    renderedRightPanelSurface?.kind === "file" && !renderedRightPanelSurface.attachment
+      ? resolveWorkspaceRootFile(
+          renderedRightPanelSurface.relativePath,
+          activeWorkspaceRoot
+            ? [
+                { cwd: activeWorkspaceRoot, title: activeProject?.title ?? "" },
+                ...ideWorkspaceRoots,
+              ]
+            : ideWorkspaceRoots,
+        )
+      : null;
+  // Within the thread's own folder, navigation opens relative paths like the explorer does.
+  const rightPanelFileRootIsPrimary =
+    rightPanelFileRoot !== null && rightPanelFileRoot.root.cwd === activeWorkspaceRoot;
   useLayoutEffect(() => {
     if (
       threadDetailLoading ||
@@ -5496,6 +5580,10 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadRef?.environmentId ?? null,
   );
   const [deviceSetupThread, setDeviceSetupThread] = useState<ScopedThreadRef | null>(null);
+  const addExtensionsSurface = useCallback(() => {
+    if (!activeThreadRef) return;
+    useRightPanelStore.getState().open(activeThreadRef, "extensions");
+  }, [activeThreadRef]);
   const addDeviceSurface = useCallback(() => {
     if (!activeThreadRef) return;
     if (!deviceState.onboardingCompleted || deviceState.hostStatus === "disabled") {
@@ -6099,6 +6187,15 @@ export default function ChatView(props: ChatViewProps) {
       useRightPanelStore.getState().setMaximized(routeThreadRef, true);
     }
   }, [canMaximizeRightPanel, routeThreadRef]);
+  const toggleIdeLayout = useCallback(() => {
+    const next = !useIdeLayoutStore.getState().enabled;
+    useIdeLayoutStore.getState().setEnabled(next);
+    if (!activeThreadRef) return;
+    // The toggle is an explicit request for the editor stage, even on a thread
+    // whose panel the user closed earlier.
+    if (next) useRightPanelStore.getState().show(activeThreadRef);
+    if (rightPanelMaximized) useRightPanelStore.getState().setMaximized(activeThreadRef, false);
+  }, [activeThreadRef, rightPanelMaximized]);
   const toggleRightPanelMaximized = useCallback(() => {
     if (!canMaximizeRightPanel || !activeThreadRef) return;
     useRightPanelStore.getState().setMaximized(activeThreadRef, !rightPanelMaximized);
@@ -8185,6 +8282,13 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
+      if (command === "layout.toggleIde") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) toggleIdeLayout();
+        return;
+      }
+
       if (command === "threadPanel.toggle") {
         event.preventDefault();
         event.stopPropagation();
@@ -8423,6 +8527,7 @@ export default function ChatView(props: ChatViewProps) {
     isThreadFindActive,
     toggleRightPanel,
     toggleRightPanelMaximized,
+    toggleIdeLayout,
     toggleThreadPanel,
     toggleTerminalVisibility,
     composerRef,
@@ -8439,8 +8544,9 @@ export default function ChatView(props: ChatViewProps) {
     return window.desktopBridge?.onMenuAction((action) => {
       if (action === "rightPanel.toggle") toggleRightPanel();
       else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximized();
+      else if (action === "layout.toggleIde") toggleIdeLayout();
     });
-  }, [toggleRightPanel, toggleRightPanelMaximized]);
+  }, [toggleIdeLayout, toggleRightPanel, toggleRightPanelMaximized]);
 
   // Paste-to-focus: the resting composer blurs on a click into the timeline,
   // so a paste that follows has no editable target and would be dropped.
@@ -11242,6 +11348,10 @@ export default function ChatView(props: ChatViewProps) {
           }}
         />
       </Suspense>
+    ) : renderedRightPanelSurface?.kind === "extensions" ? (
+      <Suspense fallback={null}>
+        <ExtensionsPanel onClose={() => closeRightPanelSurface(renderedRightPanelSurface)} />
+      </Suspense>
     ) : (renderedRightPanelSurface?.kind === "files" ||
         renderedRightPanelSurface?.kind === "file") &&
       ((activeProject && activeWorkspaceRoot) ||
@@ -11251,18 +11361,18 @@ export default function ChatView(props: ChatViewProps) {
           key={`${activeThread.environmentId}:${
             renderedRightPanelSurface.kind === "file" && renderedRightPanelSurface.attachment
               ? `attachment:${renderedRightPanelSurface.attachment.id}`
-              : activeWorkspaceRoot
+              : (rightPanelFileRoot?.root.cwd ?? activeWorkspaceRoot)
           }`}
           environmentId={activeThread.environmentId}
-          cwd={activeWorkspaceRoot ?? ""}
-          projectName={activeProject?.title ?? ""}
+          cwd={rightPanelFileRoot?.root.cwd ?? activeWorkspaceRoot ?? ""}
+          projectName={rightPanelFileRoot?.root.title ?? activeProject?.title ?? ""}
           threadRef={activeThreadRef}
           composerDraftTarget={composerDraftTarget}
           keybindings={keybindings}
           availableEditors={availableEditors}
           relativePath={
             renderedRightPanelSurface.kind === "file"
-              ? renderedRightPanelSurface.relativePath
+              ? (rightPanelFileRoot?.relativePath ?? renderedRightPanelSurface.relativePath)
               : null
           }
           {...(renderedRightPanelSurface.kind === "file" && renderedRightPanelSurface.attachment
@@ -11278,8 +11388,22 @@ export default function ChatView(props: ChatViewProps) {
               ? renderedRightPanelSurface.revealRequestId
               : 0
           }
-          onOpenFile={openFileSurface}
-          onPendingChange={handleFilePendingChange}
+          onOpenFile={
+            rightPanelFileRoot && !rightPanelFileRootIsPrimary
+              ? (path) =>
+                  openFileSurface(resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd))
+              : openFileSurface
+          }
+          onPendingChange={
+            rightPanelFileRoot
+              ? (path, pending) =>
+                  handleFilePendingChange(
+                    resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd),
+                    pending,
+                  )
+              : handleFilePendingChange
+          }
+          explorerHidden={ideLayoutActive}
           selectedFilePending={
             renderedRightPanelSurface.kind === "file" &&
             pendingFileSurfaceIds.has(renderedRightPanelSurface.id)
@@ -11398,6 +11522,11 @@ export default function ChatView(props: ChatViewProps) {
           )}
           inert={!rightPanelOpen}
         >
+          <IdeLayoutControl
+            active={ideLayoutActive}
+            shortcutLabel={shortcutLabelForCommand(keybindings, "layout.toggleIde")}
+            onToggle={toggleIdeLayout}
+          />
           <RightPanelMaximizeControl
             maximized={rightPanelMaximized}
             onToggle={toggleRightPanelMaximized}
@@ -11413,6 +11542,27 @@ export default function ChatView(props: ChatViewProps) {
     addFolders: (folders) => composerRef.current?.addDroppedFolders(folders),
   });
 
+  // In IDE layout the terminal sits under the editor; otherwise under the chat.
+  const terminalDrawers = mountedTerminalThreadRefs.map(
+    ({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
+      <PersistentThreadTerminalDrawer
+        key={mountedThreadKey}
+        threadRef={mountedThreadRef}
+        threadId={mountedThreadRef.threadId}
+        active={mountedThreadKey === activeThreadKey}
+        launchContext={
+          mountedThreadKey === activeThreadKey ? (activeTerminalLaunchContext ?? null) : null
+        }
+        focusRequestId={mountedThreadKey === activeThreadKey ? terminalFocusRequestId : 0}
+        splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
+        splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
+        newShortcutLabel={newTerminalShortcutLabel ?? undefined}
+        closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
+        keybindings={keybindings}
+        onAddTerminalContext={addTerminalContextToDraft}
+      />
+    ),
+  );
   const content = (
     <div
       ref={setWorkspaceLayoutElement}
@@ -11445,10 +11595,25 @@ export default function ChatView(props: ChatViewProps) {
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-col overflow-x-hidden",
-          rightPanelMaximized ? "w-0 flex-none" : "flex-1",
+          rightPanelMaximized ? "w-0 flex-none" : ideLayoutActive ? "relative shrink-0" : "flex-1",
         )}
+        style={
+          ideLayoutActive && !rightPanelMaximized
+            ? ({
+                [RESIZABLE_WIDTH_PROPERTY]: `${ideChatDock.width}px`,
+                width: `min(var(${RESIZABLE_WIDTH_PROPERTY}), 50%)`,
+              } as CSSProperties)
+            : undefined
+        }
         data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
+        data-chat-column-ide-dock={ideLayoutActive ? "true" : "false"}
       >
+        {ideLayoutActive && !rightPanelMaximized ? (
+          <RightPanelResizeHandle
+            handlers={ideChatDock.handlers}
+            className="right-0 left-auto z-30 w-1.5"
+          />
+        ) : null}
         {/* Top bar */}
         <header
           ref={threadPanelPopoverAnchorRef}
@@ -12078,24 +12243,7 @@ export default function ChatView(props: ChatViewProps) {
         </div>
         {/* end horizontal flex container */}
 
-        {mountedTerminalThreadRefs.map(({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
-          <PersistentThreadTerminalDrawer
-            key={mountedThreadKey}
-            threadRef={mountedThreadRef}
-            threadId={mountedThreadRef.threadId}
-            active={mountedThreadKey === activeThreadKey}
-            launchContext={
-              mountedThreadKey === activeThreadKey ? (activeTerminalLaunchContext ?? null) : null
-            }
-            focusRequestId={mountedThreadKey === activeThreadKey ? terminalFocusRequestId : 0}
-            splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
-            splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
-            newShortcutLabel={newTerminalShortcutLabel ?? undefined}
-            closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
-            keybindings={keybindings}
-            onAddTerminalContext={addTerminalContextToDraft}
-          />
-        ))}
+        {ideLayoutActive ? null : terminalDrawers}
       </div>
 
       {rightPanelPresent && !shouldUsePlanSidebarSheet && activeThreadRef ? (
@@ -12105,6 +12253,35 @@ export default function ChatView(props: ChatViewProps) {
           keybindings={keybindings}
           getShortcutContext={getShortcutContext}
           maximized={rightPanelMaximized}
+          ideLayout={ideLayoutActive}
+          bottomDock={ideLayoutActive ? terminalDrawers : undefined}
+          explorer={
+            ideLayoutActive && activeProject && activeWorkspaceRoot ? (
+              <Suspense fallback={null}>
+                <IdeExplorer
+                  environmentId={activeThreadRef.environmentId}
+                  cwd={activeWorkspaceRoot}
+                  projectName={activeProject.title}
+                  workspaceName={ideWorkspace?.name ?? null}
+                  extraRoots={ideWorkspaceRoots}
+                  selectedPath={
+                    renderedRightPanelSurface?.kind === "file" &&
+                    !renderedRightPanelSurface.attachment
+                      ? renderedRightPanelSurface.relativePath
+                      : null
+                  }
+                  selectedPathRevealId={
+                    renderedRightPanelSurface?.kind === "file"
+                      ? renderedRightPanelSurface.revealRequestId
+                      : 0
+                  }
+                  onOpenFile={openFileSurface}
+                  workspaceMutationId={workspaceMutationId}
+                  leadingTitlebarInset={rightPanelMaximized}
+                />
+              </Suspense>
+            ) : undefined
+          }
           inlineSize={previewPanelInlineSize}
           surfaces={renderedRightPanelSurfaces}
           environmentId={activeThreadRef.environmentId}
@@ -12133,6 +12310,8 @@ export default function ChatView(props: ChatViewProps) {
           onAddPullRequest={addPullRequestSurface}
           onAddPullRequests={addPullRequestsSurface}
           onAddDevice={addDeviceSurface}
+          onAddExtensions={addExtensionsSurface}
+          extensionsAvailable={true}
           browserAvailable={canOperatePreview && browserAvailable}
           terminalAvailable={activeProject !== null && canOperateTerminal}
           diffAvailable={isServerThread && isGitRepo}
@@ -12192,6 +12371,8 @@ export default function ChatView(props: ChatViewProps) {
             onAddPullRequest={addPullRequestSurface}
             onAddPullRequests={addPullRequestsSurface}
             onAddDevice={addDeviceSurface}
+            onAddExtensions={addExtensionsSurface}
+            extensionsAvailable={true}
             browserAvailable={canOperatePreview && browserAvailable}
             terminalAvailable={activeProject !== null && canOperateTerminal}
             diffAvailable={isServerThread && isGitRepo}

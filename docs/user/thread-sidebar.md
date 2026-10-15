@@ -190,6 +190,39 @@ and copying a thread reference. A copied reference uses the thread's pull reques
 link when available, otherwise its thread ID. See [keybindings](./keybindings.md)
 for custom configuration.
 
+## Edit code beside the agent
+
+On web and desktop, switch to **IDE layout** to make the editor the main view.
+Use the code button beside the panel controls, `Cmd/Ctrl+Alt+E`, or **Switch to
+IDE layout** in the command palette. The chat docks as a narrow column you can
+resize, and a file explorer stays beside the editor tabs. Click a file to open
+it as a tab, edit it, and save with `Cmd/Ctrl+S`. Closing the panel returns to
+the chat view; opening another thread brings the editor back.
+
+In the explorer, right-click a file or folder to create, rename, or delete
+files, or use the new file and new folder buttons above the tree. In IDE layout
+the terminal opens under the editor.
+
+TypeScript, JavaScript, Python, Go, and Rust files get errors and warnings
+inline when a language server is installed on the machine running T3 Code:
+`typescript-language-server`, `basedpyright` or `pyright`, `gopls`, or
+`rust-analyzer`. A project's own `node_modules/.bin` copy is used first. The bar
+under the editor shows the problem count and type information for the cursor,
+or how to install the missing server. Press `F12` or `Cmd/Ctrl`-click a symbol
+to open its definition. Diagnostics follow the saved file, so they also update
+when an agent edits it.
+
+### Group projects into workspaces
+
+A workspace groups projects you work on together, such as a service and its
+client. Open the project filter at the top of the thread list and choose **New
+workspace…**, then name it and pick its projects. Selecting the workspace shows
+threads from all of its projects. In IDE layout, the explorer lists each
+project in the workspace that is on the same machine as the thread, and you can
+edit files in any of them. Workspaces are saved in this browser or desktop app.
+Use the pencil beside a workspace to rename it, change its projects, or delete
+it.
+
 ## Inspect agent work
 
 **Limited** means the provider stopped on a usage or rate limit. The conversation

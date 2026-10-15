@@ -70,6 +70,17 @@ function writtenFilePaths(
   );
 }
 
+function changedEntryPaths(
+  input: EnvironmentRpcInput<typeof WS_METHODS.projectsEntryOperation>,
+  result: EnvironmentRpcSuccess<typeof WS_METHODS.projectsEntryOperation>,
+) {
+  return new Set(
+    [result.relativePath, input.relativePath].map((path) =>
+      resolveWorkspaceFilePath(path, input.cwd),
+    ),
+  );
+}
+
 /** The Scratch project was created, but its event never reached this client. */
 export class ScratchProjectNotLoadedError extends Schema.TaggedError<ScratchProjectNotLoadedError>()(
   "ScratchProjectNotLoadedError",
@@ -221,6 +232,28 @@ export function createProjectEnvironmentAtoms<R, E>(
       onSuccess: ({ environmentId, input }, registry, result) =>
         Effect.sync(() => {
           for (const path of writtenFilePaths(input, result))
+            fileMetadata.refreshPath(environmentId, path, registry);
+        }),
+    }),
+    // Explorer create, rename, and delete. Serial per folder so a rename and
+    // the create that follows it land in order.
+    entryOperation: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:projects:entry-operation",
+      tag: WS_METHODS.projectsEntryOperation,
+      scheduler: fileScheduler,
+      concurrency: {
+        mode: "serial",
+        key: ({ environmentId, input }) => JSON.stringify([environmentId, input.cwd]),
+      },
+      execute: (input) =>
+        requestGuarded(WS_METHODS.projectsEntryOperation, input).pipe(
+          Effect.tap((result) =>
+            Effect.forEach(changedEntryPaths(input, result), fileMetadata.invalidate),
+          ),
+        ),
+      onSuccess: ({ environmentId, input }, registry, result) =>
+        Effect.sync(() => {
+          for (const path of changedEntryPaths(input, result))
             fileMetadata.refreshPath(environmentId, path, registry);
         }),
     }),

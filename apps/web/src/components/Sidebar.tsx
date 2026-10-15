@@ -76,6 +76,8 @@ import {
   ClockIcon,
   EyeIcon,
   FolderIcon,
+  LayersIcon,
+  PencilIcon,
   GitBranchIcon,
   ListFilterIcon,
   MessageCircleQuestionIcon,
@@ -297,6 +299,10 @@ import {
 
 // Settled-tail paging: recent history is the common lookup; the deep tail
 // stays behind an explicit Show more.
+import { parseWorkspaceScopeKey, useWorkspaceStore, workspaceScopeKey } from "../workspaceStore";
+import { openWorkspaceDialog, WorkspaceDialogHost } from "./sidebar/WorkspaceDialog";
+/** Scope menu row that opens the new-workspace dialog instead of scoping the list. */
+const NEW_WORKSPACE_SCOPE_ITEM = "new-workspace";
 const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, ProviderInstanceEntry> = new Map();
 // Collapsed shelves share one empty list so a route change alone does not
 // give the sidebar list a new identity.
@@ -2600,26 +2606,37 @@ export default function Sidebar() {
   // app restarts keep it.
   const persistedProjectScopeKey = useUiStateStore((store) => store.sidebarProjectScopeKey);
   const setProjectScopeKey = useUiStateStore((store) => store.setSidebarProjectScopeKey);
+  const workspaces = useWorkspaceStore((store) => store.workspaces);
+  const workspaceIds = useMemo(
+    () => new Set(workspaces.map((workspace) => workspace.id)),
+    [workspaces],
+  );
   const projectScopeKey = useMemo(
     () =>
       resolveSidebarProjectScopeKey({
         groups: projectGroups,
         key: persistedProjectScopeKey,
         settings: projectGroupingSettings,
+        workspaceIds,
       }),
-    [persistedProjectScopeKey, projectGroups, projectGroupingSettings],
+    [persistedProjectScopeKey, projectGroups, projectGroupingSettings, workspaceIds],
   );
   // {value, label} items let Base UI drive the combobox selection contract
   // while the popup search filters the same collection.
   const projectScopeItems = useMemo(
     () => [
       { value: "all", label: "All projects" },
+      ...workspaces.map((workspace) => ({
+        value: workspaceScopeKey(workspace.id),
+        label: workspace.name,
+      })),
       ...projectGroups.map((project) => ({
         value: project.projectKey,
         label: project.displayName,
       })),
+      { value: NEW_WORKSPACE_SCOPE_ITEM, label: "New workspace…" },
     ],
-    [projectGroups],
+    [projectGroups, workspaces],
   );
   // Same-named projects on two machines are only told apart by where they
   // live, so rows on another machine carry its icon once the catalog spans
@@ -2680,16 +2697,24 @@ export default function Sidebar() {
         : (projectGroups.find((project) => project.projectKey === projectScopeKey) ?? null),
     [projectGroups, projectScopeKey],
   );
+  const scopedWorkspace = useMemo(() => {
+    const workspaceId = parseWorkspaceScopeKey(projectScopeKey);
+    return workspaceId === null
+      ? null
+      : (workspaces.find((workspace) => workspace.id === workspaceId) ?? null);
+  }, [projectScopeKey, workspaces]);
   const scopedProjectKeys = useMemo(
     () =>
-      scopedProjectGroup === null
-        ? null
-        : new Set(
-            scopedProjectGroup.memberProjectRefs.map(
-              (projectRef) => `${projectRef.environmentId}:${projectRef.projectId}`,
+      scopedWorkspace !== null
+        ? new Set(scopedWorkspace.projectRefKeys)
+        : scopedProjectGroup === null
+          ? null
+          : new Set(
+              scopedProjectGroup.memberProjectRefs.map(
+                (projectRef) => `${projectRef.environmentId}:${projectRef.projectId}`,
+              ),
             ),
-          ),
-    [scopedProjectGroup],
+    [scopedProjectGroup, scopedWorkspace],
   );
   // Configs identify scratch projects, so both they and live project snapshots
   // must arrive before a persisted scope can be considered missing.
@@ -2701,6 +2726,7 @@ export default function Sidebar() {
       key: persistedProjectScopeKey,
       settings: projectGroupingSettings,
       canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
+      workspaceIds,
     });
     if (nextKey !== persistedProjectScopeKey) {
       setProjectScopeKey(nextKey);
@@ -2712,6 +2738,7 @@ export default function Sidebar() {
     projectGroups,
     projectGroupingSettings,
     setProjectScopeKey,
+    workspaceIds,
   ]);
   // Count-only subscription: the parent needs "are there draft rows" for the
   // empty state, while SidebarDraftBlock owns the per-keystroke content
@@ -5026,6 +5053,10 @@ export default function Sidebar() {
   return (
     <>
       <ThreadContextDragGhost />
+      <WorkspaceDialogHost
+        projectGroups={projectGroups}
+        onSaved={(workspaceId) => setProjectScopeKey(workspaceScopeKey(workspaceId))}
+      />
       <SidebarChromeHeader isElectron={isElectron} />
       <SidebarContent
         className="min-h-full"
@@ -5058,6 +5089,11 @@ export default function Sidebar() {
                       return;
                     }
                     if (!item) return;
+                    if (item.value === NEW_WORKSPACE_SCOPE_ITEM) {
+                      dispatchProjectScopeMenu({ type: "open-changed", open: false });
+                      openWorkspaceDialog(null);
+                      return;
+                    }
                     setProjectScopeKey(item.value === "all" ? null : item.value);
                   }}
                 >
@@ -5065,14 +5101,18 @@ export default function Sidebar() {
                     render={
                       <SidebarHeaderIconButton
                         label={
-                          scopedProjectGroup
-                            ? `Filter threads by project: ${scopedProjectGroup.displayName}`
-                            : "Filter threads by project"
+                          scopedWorkspace
+                            ? `Filter threads by workspace: ${scopedWorkspace.name}`
+                            : scopedProjectGroup
+                              ? `Filter threads by project: ${scopedProjectGroup.displayName}`
+                              : "Filter threads by project"
                         }
                       />
                     }
                   >
-                    {scopedProjectGroup ? (
+                    {scopedWorkspace ? (
+                      <LayersIcon className="size-4" />
+                    ) : scopedProjectGroup ? (
                       // Wrapped so the button's direct-child svg color rule cannot override
                       // a project's own icon color.
                       <span className="flex shrink-0">
@@ -5123,6 +5163,46 @@ export default function Sidebar() {
                     <ComboboxList>
                       {(item: (typeof projectScopeItems)[number]) => {
                         const project = projectGroupByScopeKey.get(item.value) ?? null;
+                        const workspaceId = parseWorkspaceScopeKey(item.value);
+                        if (workspaceId !== null || item.value === NEW_WORKSPACE_SCOPE_ITEM) {
+                          return (
+                            <ComboboxItem key={item.value} hideIndicator value={item}>
+                              {workspaceId !== null ? (
+                                <LayersIcon className="size-4 shrink-0" />
+                              ) : (
+                                <PlusIcon className="size-4 shrink-0" />
+                              )}
+                              <span
+                                className={cn(
+                                  "min-w-0 flex-1 truncate text-sm",
+                                  workspaceId === null && "text-muted-foreground",
+                                )}
+                              >
+                                {item.label}
+                              </span>
+                              {workspaceId !== null ? (
+                                <Button
+                                  size="icon-xs"
+                                  variant="ghost-muted"
+                                  tabIndex={-1}
+                                  aria-hidden="true"
+                                  title={`Edit workspace ${item.label}`}
+                                  className="ml-auto"
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    suppressNextScopeChangeRef.current = true;
+                                    dispatchProjectScopeMenu({ type: "open-changed", open: false });
+                                    openWorkspaceDialog(workspaceId);
+                                  }}
+                                >
+                                  <PencilIcon className="size-3.5" />
+                                </Button>
+                              ) : null}
+                            </ComboboxItem>
+                          );
+                        }
                         return (
                           <ComboboxItem
                             key={item.value}
@@ -5616,6 +5696,8 @@ export default function Sidebar() {
                     Add project
                   </button>
                 </>
+              ) : scopedWorkspace ? (
+                `No threads in ${scopedWorkspace.name} yet`
               ) : scopedProjectGroup ? (
                 `No threads in ${scopedProjectGroup.displayName} yet`
               ) : (

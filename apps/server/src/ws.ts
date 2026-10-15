@@ -72,6 +72,7 @@ import {
   ProjectSearchContentsError,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
+  ProjectEntryOperationError,
   ProjectMutationError,
   ProviderUploadFeedbackError,
   ProviderSetupError,
@@ -195,6 +196,7 @@ import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/Atta
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
+import * as LanguageServers from "./languageServer/LanguageServers.ts";
 import { readWorkflowScript } from "./orchestration-v2/workflowScriptQuery.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
@@ -540,6 +542,8 @@ function projectFileFailureContext(
       return { failure: "path_not_file", resolvedPath: error.resolvedPath };
     case "WorkspaceBinaryFileError":
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
+    case "WorkspacePathExistsError":
+      return { failure: "path_exists", resolvedPath: error.resolvedPath };
     default:
       return unexpectedCompatibilityError(error);
   }
@@ -1303,6 +1307,7 @@ const layerWsRpc = (
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+      const languageServers = yield* LanguageServers.LanguageServers;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
@@ -2692,6 +2697,21 @@ const layerWsRpc = (
             Effect.mapError(
               (cause) =>
                 new ProjectWriteFileError({
+                  cwd: input.cwd,
+                  relativePath: input.relativePath,
+                  ...projectFileFailureContext(cause),
+                  cause,
+                }),
+            ),
+          ),
+        [WS_METHODS.languageServerDiagnostics]: (input) => languageServers.diagnostics(input),
+        [WS_METHODS.languageServerHover]: (input) => languageServers.hover(input),
+        [WS_METHODS.languageServerDefinition]: (input) => languageServers.definition(input),
+        [WS_METHODS.projectsEntryOperation]: (input) =>
+          workspaceFileSystem.entryOperation(input).pipe(
+            Effect.mapError(
+              (cause) =>
+                new ProjectEntryOperationError({
                   cwd: input.cwd,
                   relativePath: input.relativePath,
                   ...projectFileFailureContext(cause),

@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
 import { GitPreparePullRequestThreadInput } from "./git.ts";
 import {
+  AuthFilesystemWriteScope,
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
@@ -40,6 +41,12 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.vcsCreateRef]: AuthSourceControlWriteScope,
   [WS_METHODS.vcsSwitchRef]: AuthSourceControlWriteScope,
   [WS_METHODS.vcsInit]: AuthSourceControlWriteScope,
+
+  [WS_METHODS.projectsEntryOperation]: AuthFilesystemWriteScope,
+  // Language servers run the project's own tooling, so they need the grant that editing does.
+  [WS_METHODS.languageServerDiagnostics]: AuthFilesystemWriteScope,
+  [WS_METHODS.languageServerHover]: AuthFilesystemWriteScope,
+  [WS_METHODS.languageServerDefinition]: AuthFilesystemWriteScope,
 
   [WS_METHODS.scheduledTasksUpsert]: AuthOrchestrationOperateScope,
   [WS_METHODS.scheduledTasksSetEnabled]: AuthOrchestrationOperateScope,
