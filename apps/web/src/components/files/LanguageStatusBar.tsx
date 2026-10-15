@@ -1,21 +1,42 @@
 import type { LanguageServerDiagnosticsEvent } from "@t3tools/contracts";
-import { CircleAlertIcon, CircleXIcon } from "lucide-react";
+import { CircleAlertIcon, CircleXIcon, GitBranchIcon } from "lucide-react";
 
 import { countDiagnostics } from "./useLanguageServer";
 
-/** Slim footer under the editor: hover info for the caret and the file's problem counts. */
+export interface FileGitDiffInfo {
+  readonly status: "modified" | "added" | "deleted" | "untracked";
+  readonly insertions: number;
+  readonly deletions: number;
+}
+
+/** Slim footer under the editor: hover info for the caret, problem counts, and Git diff. */
 export function LanguageStatusBar(props: {
   event: LanguageServerDiagnosticsEvent | null;
   hoverText: string | null;
+  gitDiff?: FileGitDiffInfo | null;
 }) {
-  const { event } = props;
-  if (event === null || event.type === "unsupported") return null;
+  const { event, gitDiff } = props;
+  const hasLsp = event !== null && event.type !== "unsupported";
+
+  if (!hasLsp && !gitDiff) return null;
+
   return (
     <div
       className="flex h-6 min-h-6 shrink-0 items-center gap-3 border-t border-border/60 px-3 text-xs text-muted-foreground"
       data-language-status
     >
-      {event.type === "unavailable" ? (
+      {gitDiff ? (
+        <span
+          className="flex shrink-0 items-center gap-1.5 font-mono text-[11px]"
+          title={`Git status: ${gitDiff.status}`}
+        >
+          <GitBranchIcon className="size-3 text-muted-foreground" />
+          <span className="text-emerald-600 dark:text-emerald-400">+{gitDiff.insertions}</span>
+          <span className="text-rose-600 dark:text-rose-400">-{gitDiff.deletions}</span>
+        </span>
+      ) : null}
+
+      {!hasLsp ? null : event.type === "unavailable" ? (
         <span className="min-w-0 truncate">
           {event.serverName} language features: install with{" "}
           <code className="font-mono select-all">{event.installHint}</code>

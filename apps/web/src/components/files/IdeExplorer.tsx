@@ -14,6 +14,10 @@ import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 
 import { RightPanelResizeHandle } from "../preview/RightPanelResizeHandle";
 import FileBrowserPanel from "./FileBrowserPanel";
+import { useProjectFileQuery } from "./projectFilesQueryState";
+import { extractDocumentSymbols } from "./symbolExtractor";
+import { SymbolOutlinePanel } from "./SymbolOutlinePanel";
+import { useMemo } from "react";
 import type { WorkspaceRoot } from "./workspaceRoots";
 
 interface IdeExplorerProps {
@@ -52,6 +56,20 @@ export function IdeExplorer(props: IdeExplorerProps) {
     { cwd: props.cwd, title: props.projectName },
     ...props.extraRoots,
   ];
+  const activeFile = useProjectFileQuery(
+    props.environmentId,
+    props.cwd,
+    props.selectedPath,
+    props.selectedPath !== null,
+  );
+  const symbols = useMemo(
+    () =>
+      props.selectedPath && activeFile.data?.contents
+        ? extractDocumentSymbols(activeFile.data.contents, props.selectedPath)
+        : [],
+    [activeFile.data?.contents, props.selectedPath],
+  );
+
   const toggleRoot = (cwd: string) =>
     setCollapsedRoots((current) => {
       const next = new Set(current);
@@ -153,6 +171,16 @@ export function IdeExplorer(props: IdeExplorerProps) {
             workspaceMutationId={props.workspaceMutationId}
           />
         </div>
+      )}
+      {symbols.length > 0 && (
+        <SymbolOutlinePanel
+          symbols={symbols}
+          onSelectSymbol={() => {
+            if (props.selectedPath) {
+              props.onOpenFile(props.selectedPath);
+            }
+          }}
+        />
       )}
       <RightPanelResizeHandle handlers={handlers} className="right-0 left-auto w-1.5" />
     </aside>

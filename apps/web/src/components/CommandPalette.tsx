@@ -155,6 +155,7 @@ import {
   useRightPanelStore,
 } from "../rightPanelStore";
 import { useIdeLayoutStore } from "../ideLayoutStore";
+import { openWorkspaceDialog } from "./sidebar/WorkspaceDialog";
 import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
 import {
   cn,
@@ -1884,6 +1885,17 @@ function OpenCommandPaletteDialog(props: {
       shortcutCommand: "layout.toggleIde",
       run: async () => {
         useIdeLayoutStore.getState().toggle();
+      },
+    });
+
+    actionItems.push({
+      kind: "action",
+      value: "action:new-workspace",
+      title: "Workspaces: New Workspace...",
+      searchTerms: ["workspace", "projects", "group", "ide", "multi-root", "t3"],
+      icon: <FolderIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        openWorkspaceDialog();
       },
     });
   }

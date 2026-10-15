@@ -4,6 +4,8 @@ import { create } from "zustand";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { useWorkspaceStore, type Workspace } from "~/workspaceStore";
 
+import { serializeWorkspaceConfig, parseWorkspaceConfig } from "~/workspaceDisk";
+import { toastManager } from "~/components/ui/toast";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -96,6 +98,56 @@ function WorkspaceDialog(props: {
   );
   const canSave = name.trim().length > 0 && projectRefKeys.length > 0;
 
+  const handleExport = async () => {
+    const raw = serializeWorkspaceConfig({ name: name || "Workspace", projectRefKeys });
+    try {
+      await navigator.clipboard.writeText(raw);
+      toastManager.add({
+        title: "Workspace config copied",
+        description: "Ready to save to .t3/workspace.json in your project",
+      });
+    } catch {
+      toastManager.add({
+        title: "Export failed",
+        description: "Clipboard access was denied",
+      });
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = parseWorkspaceConfig(text);
+      if (!parsed) {
+        toastManager.add({
+          title: "Invalid workspace JSON",
+          description: "Clipboard does not contain a valid .t3/workspace.json",
+        });
+        return;
+      }
+      setName(parsed.name);
+      const importedKeys = new Set(parsed.projectRefKeys);
+      setSelectedGroupKeys(
+        new Set(
+          projectGroups
+            .filter((group) =>
+              group.memberProjectRefs.some((ref) => importedKeys.has(projectRefKey(ref))),
+            )
+            .map((group) => group.projectKey),
+        ),
+      );
+      toastManager.add({
+        title: "Workspace loaded",
+        description: `Imported "${parsed.name}" with ${parsed.projectRefKeys.length} projects`,
+      });
+    } catch {
+      toastManager.add({
+        title: "Import failed",
+        description: "Could not read from clipboard",
+      });
+    }
+  };
+
   const save = () => {
     const store = useWorkspaceStore.getState();
     const savedId = workspace
@@ -179,11 +231,18 @@ function WorkspaceDialog(props: {
             </div>
           </DialogPanel>
           <DialogFooter>
+            <div className="flex items-center gap-1.5 sm:mr-auto">
+              <Button type="button" variant="outline" size="sm" onClick={handleExport}>
+                Export JSON
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleImport}>
+                Import JSON
+              </Button>
+            </div>
             {workspace ? (
               <Button
                 type="button"
                 variant="destructive-outline"
-                className="sm:mr-auto"
                 onClick={() => {
                   useWorkspaceStore.getState().remove(workspace.id);
                   closeWorkspaceDialog();

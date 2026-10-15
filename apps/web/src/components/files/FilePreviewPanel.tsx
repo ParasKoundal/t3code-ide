@@ -37,7 +37,11 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { mediaFileReference } from "@t3tools/client-runtime/media-reference";
-import { FolderTree, Globe2, WrapTextIcon } from "lucide-react";
+import { FolderTree, Globe2, WrapTextIcon, Sparkles } from "lucide-react";
+import { vcsEnvironment } from "~/state/vcs";
+import { useEnvironmentQuery } from "~/state/query";
+import { InlineCodeEdit } from "./InlineCodeEdit";
+import { extractDocumentSymbols } from "./symbolExtractor";
 import { Code2, Eye, Table2 } from "lucide";
 import * as Schema from "effect/Schema";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -725,6 +729,76 @@ function EditableFileSurface({
   const { ready: editable, onPostRender: onEditablePostRender } =
     useEditableAfterHighlight(externalFile);
   const editorRef = useRef<Editor<"file", FileCommentAnnotationGroup, undefined> | null>(null);
+
+  const [inlineEditOpen, setInlineEditOpen] = useState(false);
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        e.stopPropagation();
+        setInlineEditOpen((current) => !current);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, []);
+
+  const gitStatusQuery = useEnvironmentQuery(
+    vcsEnvironment.status({
+      environmentId,
+      input: { cwd, includeRemote: false },
+    }),
+  );
+  const gitDiff = useMemo(() => {
+    const file = gitStatusQuery.data?.workingTree.files.find(
+      (f) => String(f.path) === relativePath,
+    );
+    if (!file) return null;
+    return {
+      status: (file.insertions > 0 && file.deletions === 0
+        ? "added"
+        : file.deletions > 0 && file.insertions === 0
+          ? "deleted"
+          : "modified") as "added" | "deleted" | "modified",
+      insertions: file.insertions,
+      deletions: file.deletions,
+    };
+  }, [gitStatusQuery.data?.workingTree.files, relativePath]);
+
+  const handleApplyInlineEdit = useCallback(
+    (newContents: string) => {
+      setEditedContents(newContents);
+      setProjectFileQueryData(environmentId, cwd, relativePath, newContents);
+      saveCoordinator.change(newContents);
+    },
+    [cwd, environmentId, relativePath, saveCoordinator],
+  );
+
+  const handleSendToChat = useCallback(
+    (instruction: string, selectedSnippet: string) => {
+      const lines = externalFile.contents.split("\n");
+      const startLine = selectedRange ? Math.min(selectedRange.start, selectedRange.end) : 1;
+      const endLine = selectedRange
+        ? Math.max(selectedRange.start, selectedRange.end)
+        : lines.length;
+      addReviewComment(
+        composerDraftTarget,
+        buildFileReviewComment({
+          id: `inline-edit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          filePath: relativePath,
+          startLine,
+          endLine,
+          contents: selectedSnippet,
+          text: instruction,
+        }),
+      );
+      toastManager.add({
+        title: "Added to chat composer",
+        description: `Comment attached on ${relativePath}:${startLine}–${endLine}`,
+      });
+    },
+    [addReviewComment, composerDraftTarget, externalFile.contents, relativePath, selectedRange],
+  );
   const language = useLanguageServer({
     environmentId,
     cwd,
@@ -976,7 +1050,20 @@ function EditableFileSurface({
             />
           </Virtualizer>
         </div>
-        <LanguageStatusBar event={language.event} hoverText={language.hoverText} />
+        <InlineCodeEdit
+          isOpen={inlineEditOpen}
+          relativePath={relativePath}
+          selectedRange={selectedRange}
+          originalCode={externalFile.contents}
+          onClose={() => setInlineEditOpen(false)}
+          onApplyEdit={handleApplyInlineEdit}
+          onSendToChat={handleSendToChat}
+        />
+        <LanguageStatusBar
+          event={language.event}
+          hoverText={language.hoverText}
+          gitDiff={gitDiff}
+        />
       </div>
     </EditProvider>
   );
@@ -1190,6 +1277,13 @@ export default function FilePreviewPanel({
   const absolutePath =
     relativePath && attachment === undefined ? resolvePathLinkTarget(relativePath, cwd) : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
+  const documentSymbols = useMemo(
+    () =>
+      previewPath && file.data?.contents
+        ? extractDocumentSymbols(file.data.contents, previewPath)
+        : [],
+    [file.data?.contents, previewPath],
+  );
   useWorkspaceMutationRefresh({
     enabled:
       attachment === undefined &&
@@ -1293,6 +1387,8 @@ export default function FilePreviewPanel({
                 projectName={projectName}
                 relativePath={relativePath}
                 workspaceMutationId={workspaceMutationId}
+                symbols={documentSymbols}
+                onSelectSymbol={(_sym) => onOpenFile(relativePath)}
               />
             </div>
           </ScrollArea>
@@ -1333,6 +1429,18 @@ export default function FilePreviewPanel({
               onPress={() => updateClientSettings({ wordWrap: !wordWrap })}
             >
               <WrapTextIcon className="size-3.5" />
+            </FileSurfaceAction>
+          ) : null}
+          {showsRawText && canWriteFiles ? (
+            <FileSurfaceAction
+              label="Inline code edit (Cmd+K)"
+              onPress={() => {
+                window.dispatchEvent(
+                  new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
+                );
+              }}
+            >
+              <Sparkles className="size-3.5 text-primary" />
             </FileSurfaceAction>
           ) : null}
           {canOpenInBrowser ? (
