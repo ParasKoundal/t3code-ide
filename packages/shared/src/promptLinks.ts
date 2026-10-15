@@ -1,4 +1,5 @@
 import { DEFAULT_HOSTED_APP_URL } from "./connectAuth.ts";
+import { DESKTOP_SCHEME } from "./appIdentity.ts";
 
 /**
  * Prompt links open T3 Code from outside it with a prompt ready to send. They never send it:
@@ -242,7 +243,7 @@ export function promptLinkAppPath(
 }
 
 /** The `t3code://` link that hands an in-app path to an installed desktop or mobile app. */
-export function promptLinkDeepLink(appPath: string, scheme = "t3code"): string {
+export function promptLinkDeepLink(appPath: string, scheme = DESKTOP_SCHEME): string {
   const url = new URL(appPath, "https://app.invalid");
   const host = url.pathname === "/new" ? "new" : `threads${url.pathname}`;
   return `${scheme}://${host}${url.search}`;

@@ -28,7 +28,7 @@ function makeTarget(stateDir: string, platform: NodeJS.Platform, userId: number 
   return resolveDesktopAppControlAddress({
     stateDir,
     platform,
-    tempDir: NodeOS.tmpdir(),
+    tempDir: platform === "win32" ? NodeOS.tmpdir() : "/tmp",
     userId,
     joinPath: NodePath.join,
   });
