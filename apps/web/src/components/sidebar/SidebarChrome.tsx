@@ -7,6 +7,7 @@ import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { usePullRequestsSupported } from "../../state/environments";
 import { T3Wordmark } from "../T3Wordmark";
+import { T3AppLogo } from "../T3AppLogo";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -127,9 +128,8 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
 
 function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
   return (
-    // Center the visible capitals, without the font's ascender/descender space.
-    // Padding keeps ascenders and round-letter overshoot inside the truncation clip.
-    <span className="inline-flex min-w-0 items-baseline gap-1 text-sm font-medium tracking-tight">
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-medium tracking-tight">
+      <T3AppLogo size={18} className="shrink-0 rounded-sm" />
       <T3Wordmark aria-label="T3" className="h-[1cap] w-auto shrink-0" />
       <span
         className={cn(
@@ -138,6 +138,9 @@ function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
         )}
       >
         Code
+      </span>
+      <span className="ml-0.5 rounded bg-primary/15 px-1 py-0.5 text-[9px] font-bold text-primary tracking-wider uppercase leading-none">
+        IDE
       </span>
     </span>
   );
