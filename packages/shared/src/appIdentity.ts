@@ -27,3 +27,13 @@ export const DESKTOP_APP_ID = "com.paraskoundal.t3codeide";
 
 /** Linux executable and window class. */
 export const DESKTOP_EXECUTABLE_NAME = "t3code-ide";
+
+/**
+ * GitHub repository whose releases this app installs runtimes and updates
+ * from. Pointing at upstream would install T3 Code's server, not this app's.
+ */
+export const RELEASE_REPOSITORY = "ParasKoundal/t3code-ide";
+
+/** Background service names, distinct from T3 Code's own service. */
+export const BACKGROUND_SERVICE_NAME = DESKTOP_EXECUTABLE_NAME;
+export const BACKGROUND_SERVICE_LAUNCHD_LABEL = `${DESKTOP_APP_ID}.service`;

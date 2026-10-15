@@ -50,7 +50,7 @@ T3 Code IDE is fully decoupled from upstream T3 Code, allowing both applications
 
 ## 🪟 Windows Installation Notes
 
-1. Download `T3-Code-IDE-Setup-<version>.exe`.
+1. Download `T3-Code-IDE-<version>-x64.exe`.
 2. Double-click the installer to install the desktop application.
 3. **SmartScreen Notice**: If Windows Defender SmartScreen warns _"Windows protected your PC"_:
    - Click **More info**.
