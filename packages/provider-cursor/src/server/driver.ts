@@ -6,9 +6,12 @@
  *
  * @module provider/Drivers/CursorDriver
  */
+import type { ModelSelection as CursorSdkModelSelection, SDKModel } from "@cursor/sdk";
 import { ProviderDriverKind, ProviderSetupError } from "@t3tools/contracts";
 import { CursorSettings } from "../settings.ts";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Crypto from "effect/Crypto";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -22,6 +25,7 @@ import { CursorAdapterV2Driver, type CursorAdapterV2DriverEnv } from "./adapter.
 import { ProviderDriverError } from "@t3tools/provider-core/server/errors";
 import { buildInitialCursorProviderSnapshot, checkCursorProviderStatus } from "./status.ts";
 import * as CursorSdkCatalog from "./CursorSdkCatalog.ts";
+import { withCursorSdkDefaultParams } from "./sdkModel.ts";
 import { makeManagedServerProvider } from "@t3tools/provider-core/server/managedProvider";
 import {
   defaultProviderContinuationIdentity,
@@ -163,6 +167,23 @@ export const CursorDriver: ProviderDriver<
           },
         });
 
+      // One catalog per instance, so status checks and turns share its model cache.
+      const sdkCatalog = yield* CursorSdkCatalog.makeCursorSdkCatalog();
+      /** Fills unspecified model parameters from the account's default variant. */
+      const completeModelSelection = (apiKey: string) =>
+        sdkCatalog.readModels(apiKey).pipe(
+          Effect.timeoutOption(Duration.seconds(5)),
+          Effect.map(Option.getOrElse((): ReadonlyArray<SDKModel> => [])),
+          Effect.orElseSucceed((): ReadonlyArray<SDKModel> => []),
+          Effect.map(
+            (models) =>
+              <M>(model: M): M =>
+                typeof model === "object" && model !== null && "id" in model
+                  ? (withCursorSdkDefaultParams(model as CursorSdkModelSelection, models) as M)
+                  : model,
+          ),
+        );
+
       const orchestrationAdapter = yield* CursorAdapterV2Driver.create({
         instanceId,
         displayName,
@@ -176,17 +197,47 @@ export const CursorDriver: ProviderDriver<
           open: (input) =>
             auth.requireApiKey.pipe(
               Effect.flatMap((apiKey) =>
-                Effect.acquireRelease(
-                  sdkRunner
-                    .open({ ...input, options: { ...input.options, apiKey } })
-                    .pipe(
-                      Effect.flatMap((session) =>
-                        Effect.cached(session.close).pipe(
-                          Effect.map((close) => ({ ...session, close })),
+                completeModelSelection(apiKey).pipe(
+                  Effect.flatMap((complete) =>
+                    Effect.acquireRelease(
+                      sdkRunner
+                        .open({
+                          ...input,
+                          options: {
+                            ...input.options,
+                            apiKey,
+                            ...(input.options.model === undefined
+                              ? {}
+                              : { model: complete(input.options.model) }),
+                          },
+                        })
+                        .pipe(
+                          Effect.flatMap((session) =>
+                            Effect.cached(session.close).pipe(
+                              Effect.map((close): CursorAgentSdk.CursorAgentSdkSession => ({
+                                ...session,
+                                close,
+                                send: (sendInput) =>
+                                  session.send({
+                                    ...sendInput,
+                                    ...(sendInput.options === undefined
+                                      ? {}
+                                      : {
+                                          options: {
+                                            ...sendInput.options,
+                                            ...(sendInput.options.model === undefined
+                                              ? {}
+                                              : { model: complete(sendInput.options.model) }),
+                                          },
+                                        }),
+                                  }),
+                              })),
+                            ),
+                          ),
                         ),
-                      ),
+                      (session) => session.close.pipe(Effect.ignore),
                     ),
-                  (session) => session.close.pipe(Effect.ignore),
+                  ),
                 ),
               ),
               auth.withAccess,
@@ -248,7 +299,7 @@ export const CursorDriver: ProviderDriver<
         Effect.provideService(Path.Path, path),
         Effect.provideService(CursorKeychain.CursorKeychain, keychain),
         Effect.map(stampSnapshot),
-        Effect.provide(CursorSdkCatalog.layer),
+        Effect.provideService(CursorSdkCatalog.CursorSdkCatalog, sdkCatalog),
       );
 
       const snapshotSettings = yield* makeProviderSnapshotSettingsSource(effectiveConfig);

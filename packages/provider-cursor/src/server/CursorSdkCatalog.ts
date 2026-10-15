@@ -34,6 +34,10 @@ export class CursorSdkCatalog extends Context.Service<
     readonly read: (
       apiKey: string,
     ) => Effect.Effect<CursorSdkCatalogSnapshot, CursorSdkCatalogError>;
+    /** The account's models, cached like `read`, without the user lookup. */
+    readonly readModels: (
+      apiKey: string,
+    ) => Effect.Effect<ReadonlyArray<SDKModel>, CursorSdkCatalogError>;
   }
 >()("@t3tools/provider-cursor/server/CursorSdkCatalog") {}
 
@@ -83,6 +87,7 @@ export const makeCursorSdkCatalog = Effect.fn("CursorSdkCatalog.make")(function*
         },
         { concurrency: "unbounded" },
       ),
+    readModels: (apiKey) => Cache.get(modelCache, apiKey),
   });
 });
 
@@ -91,5 +96,11 @@ export const layer = Layer.effect(CursorSdkCatalog, makeCursorSdkCatalog());
 export function layerTest(
   read: CursorSdkCatalog["Service"]["read"],
 ): Layer.Layer<CursorSdkCatalog> {
-  return Layer.succeed(CursorSdkCatalog, CursorSdkCatalog.of({ read }));
+  return Layer.succeed(
+    CursorSdkCatalog,
+    CursorSdkCatalog.of({
+      read,
+      readModels: (apiKey) => Effect.map(read(apiKey), (snapshot) => snapshot.models),
+    }),
+  );
 }
