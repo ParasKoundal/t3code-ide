@@ -6,6 +6,7 @@ import {
 } from "./logicalProject";
 import { resolveScratchProjectScopeKey } from "@t3tools/client-runtime/state/project-grouping";
 import type { Project } from "./types";
+import { parseWorkspaceScopeKey } from "./workspaceStore";
 
 export type EnvironmentPresence = "local-only" | "remote-only" | "mixed";
 
@@ -78,8 +79,15 @@ export function resolveSidebarProjectScopeKey(input: {
   readonly key: string | null;
   readonly settings?: ProjectGroupingSettings;
   readonly canClearMissingScope?: boolean;
+  /** Workspace ids on this client; a workspace scope key survives only while its workspace does. */
+  readonly workspaceIds?: ReadonlySet<string>;
 }): string | null {
   if (input.key === null) return null;
+  const workspaceId = parseWorkspaceScopeKey(input.key);
+  if (workspaceId !== null) {
+    // Workspaces are local state, available before any project snapshot arrives.
+    return input.workspaceIds?.has(workspaceId) ? input.key : null;
+  }
   const group =
     input.groups.find((candidate) => candidate.projectKey === input.key) ??
     input.groups.find(
