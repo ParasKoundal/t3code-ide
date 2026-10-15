@@ -1,4 +1,4 @@
-import { PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "lucide-react";
+import { CodeIcon, PanelBottomIcon, PanelRightIcon, SquareMenuIcon } from "lucide-react";
 import { Maximize2, Minimize2 } from "lucide";
 import { MorphIcon } from "~/components/MorphIcon";
 import { memo, type ReactElement } from "react";
@@ -156,6 +156,40 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
         }
       />
       <TooltipPopup side="bottom">{label}</TooltipPopup>
+    </Tooltip>
+  );
+});
+
+export const IdeLayoutControl = memo(function IdeLayoutControl({
+  active,
+  shortcutLabel,
+  onToggle,
+}: {
+  active: boolean;
+  shortcutLabel: string | null;
+  onToggle: () => void;
+}) {
+  const label = active ? "Exit IDE layout" : "IDE layout";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Toggle
+            className="shrink-0 [-webkit-app-region:no-drag]"
+            pressed={active}
+            onPressedChange={onToggle}
+            aria-label={label}
+            variant="ghost"
+            size="sm"
+          >
+            <CodeIcon className="size-4" />
+          </Toggle>
+        }
+      />
+      <TooltipPopup side="bottom">
+        {label}
+        {shortcutLabel ? ` (${shortcutLabel})` : ""}
+      </TooltipPopup>
     </Tooltip>
   );
 });

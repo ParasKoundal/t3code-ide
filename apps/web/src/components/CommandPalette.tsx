@@ -65,6 +65,7 @@ import {
   FileSearchIcon,
   FolderGit2Icon,
   FolderIcon,
+  CodeIcon,
   FolderPlusIcon,
   MessageSquareDashedIcon,
   LinkIcon,
@@ -152,6 +153,7 @@ import {
   selectActiveRightPanel,
   useRightPanelStore,
 } from "../rightPanelStore";
+import { useIdeLayoutStore } from "../ideLayoutStore";
 import { getLatestThreadForProject, sortThreads } from "../lib/threadSort";
 import {
   cn,
@@ -1866,6 +1868,21 @@ function OpenCommandPaletteDialog(props: {
       shortcutCommand: "chat.find",
       run: async () => {
         requestThreadFindOpen();
+      },
+    });
+  }
+
+  if (activeThreadId) {
+    const ideLayoutEnabled = useIdeLayoutStore.getState().enabled;
+    actionItems.push({
+      kind: "action",
+      value: "action:toggle-ide-layout",
+      title: ideLayoutEnabled ? "Exit IDE layout" : "Switch to IDE layout",
+      searchTerms: ["ide", "editor", "layout", "explorer", "code", "files", "workbench"],
+      icon: <CodeIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "layout.toggleIde",
+      run: async () => {
+        useIdeLayoutStore.getState().toggle();
       },
     });
   }
