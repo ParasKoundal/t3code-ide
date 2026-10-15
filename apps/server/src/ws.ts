@@ -196,6 +196,7 @@ import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/Atta
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
+import * as LanguageServers from "./languageServer/LanguageServers.ts";
 import { readWorkflowScript } from "./orchestration-v2/workflowScriptQuery.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
@@ -1306,6 +1307,7 @@ const layerWsRpc = (
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+      const languageServers = yield* LanguageServers.LanguageServers;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
@@ -2702,6 +2704,9 @@ const layerWsRpc = (
                 }),
             ),
           ),
+        [WS_METHODS.languageServerDiagnostics]: (input) => languageServers.diagnostics(input),
+        [WS_METHODS.languageServerHover]: (input) => languageServers.hover(input),
+        [WS_METHODS.languageServerDefinition]: (input) => languageServers.definition(input),
         [WS_METHODS.projectsEntryOperation]: (input) =>
           workspaceFileSystem.entryOperation(input).pipe(
             Effect.mapError(
