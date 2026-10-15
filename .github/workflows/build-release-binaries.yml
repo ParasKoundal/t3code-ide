@@ -1,0 +1,105 @@
+name: Build & Release Desktop & Mobile Binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to attach binaries to (e.g. v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos-dmg:
+    name: Build macOS DMG (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+          - arch: x64
+            runner: macos-13
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+
+      - name: Install Dependencies
+        run: vp i
+
+      - name: Build macOS DMG
+        run: node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch ${{ matrix.arch }}
+
+      - name: Upload DMG to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          gh release upload "$TAG" dist/desktop/*.dmg --clobber || true
+
+  build-windows-exe:
+    name: Build Windows NSIS Installer (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+
+      - name: Install Dependencies
+        run: vp i
+
+      - name: Build Windows NSIS Installer
+        run: node scripts/build-desktop-artifact.ts --platform win --target nsis --arch x64
+
+      - name: Upload EXE to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        shell: bash
+        run: |
+          gh release upload "$TAG" dist/desktop/*.exe --clobber || true
+
+  build-linux-appimage:
+    name: Build Linux AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install System Libraries
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+
+      - name: Install Dependencies
+        run: vp i
+
+      - name: Build Linux AppImage
+        run: node scripts/build-desktop-artifact.ts --platform linux --target AppImage --arch x64
+
+      - name: Upload AppImage to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          gh release upload "$TAG" dist/desktop/*.AppImage --clobber || true
