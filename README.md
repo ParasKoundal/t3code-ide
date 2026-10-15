@@ -1,141 +1,85 @@
-# T3 Code
+# T3 Code IDE
 
-T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
+**T3 Code IDE** is an open-source, AI-native development environment and agent harness. It merges the multi-agent control surface of T3 Code with a full-fledged IDE experience inspired by Cursor and Google Antigravity.
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, and Google Antigravity. If they're set up on your computer, T3 Code can control them.
+Control agents on your machine (Claude Code, Codex, Cursor, Grok Build, OpenCode, and Antigravity) while enjoying a modern, unified IDE with multi-root workspaces, language servers, a docked terminal, and an Open VSX extension marketplace.
 
-## "Wait, what are you selling me?"
+---
 
-Nothing. We built T3 Code because we wanted the best possible development experience with agents. We were inspired by existing solutions like the Codex desktop app, Conductor, Claude Desktop and Cursor Glass, but none met our bar.
+## What Makes T3 Code IDE Different?
 
-We wanted something performant, remote-ready, and truly open. If we ever go the wrong direction, we want you to have everything you need to fork and build the editor that you want.
+Unlike standalone chat wrappers or traditional code editors, **T3 Code IDE** is designed from the ground up for agentic workflows with first-class editor integration:
 
-## Installation
+- **Integrated IDE Layout**: Side-by-side docked AI chat, Monaco code editor, and persistent multi-root file explorer. Switch effortlessly between chat-first and IDE modes (`Ctrl+Shift+I`).
+- **Open VSX Extension Marketplace**: Search, install, toggle, and configure VS Code-compatible extensions and themes directly from [Open VSX](https://open-vsx.org).
+- **Multi-Root Workspaces**: Group multiple repositories or project folders under unified workspace scopes with dedicated agent chat threads per workspace or sub-project.
+- **Docked Terminal Drawer**: Integrated terminal docked beneath the editor (`Ctrl+\``) for running project commands without switching contexts.
+- **Language Server Intelligence**: In-editor LSP diagnostics, error/warning underlines, hover tooltips, and Go to Definition navigation (`vtsls`, `pyright`, `gopls`, `rust-analyzer`).
+- **Full Agent Harness**: Native support for Codex, Claude, Cursor CLI, Grok Build, OpenCode, and Antigravity with full local and remote control surfaces.
+
+---
+
+## Installation & Providers
 
 > [!WARNING]
-> T3 Code currently supports Codex, Claude, Cursor, Grok Build, OpenCode, and Antigravity. Install and authenticate at least one provider before use:
+> T3 Code IDE supports Codex, Claude, Cursor, Grok Build, OpenCode, and Antigravity. Install and authenticate at least one provider before use:
 >
 > - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
 > - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
 > - Cursor: install [Cursor CLI](https://cursor.com/cli) and run `agent login`
 > - Grok Build: install [Grok Build CLI](https://x.ai/cli) and run `grok login`
 > - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
-> - Antigravity: enable it in Settings, then use **Install Antigravity** and **Sign in with Google**. No CLI is required.
+> - Antigravity: enable in Settings, then use **Install Antigravity** and **Sign in with Google**.
 
-### Command line
+---
 
-```bash
-curl -fsSL https://t3.codes/install.sh | sh
-```
+## Quick Start from Source
 
-On Windows, in PowerShell:
+T3 Code IDE uses [Vite+](https://vite.plus) for ultra-fast builds and package management.
 
-```powershell
-irm https://t3.codes/install.ps1 | iex
-```
-
-Then run `t3` to start the server and open the local web app. `t3 service install` keeps it running in the background, `t3 update` moves to a newer release, and `t3 --help` has the full reference.
-
-To try it once without installing, run `npx t3@latest` instead.
-
-### Desktop app
-
-Install the latest version of the desktop app from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), or from your favorite package registry:
-
-#### Windows (`winget`)
+### 1. Install Vite+ (`vp`)
 
 ```bash
-winget install T3Tools.T3Code
-```
-
-#### Windows (`scoop`)
-
-```bash
-scoop install extras/t3code
-```
-
-#### macOS (Homebrew)
-
-```bash
-brew install --cask t3-code
-```
-
-#### Debian, Ubuntu (`.deb`)
-
-Download the `.deb` from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), then:
-
-```bash
-sudo apt install ./T3-Code-*.deb
-```
-
-#### Arch Linux (AUR)
-
-Stable:
-
-```bash
-yay -S t3code-bin
-```
-
-Nightly:
-
-```bash
-yay -S t3code-nightly-bin
-```
-
-The AUR packaging is maintained in this repository under [`packaging/aur`](./packaging/aur).
-
-## Some notes
-
-We are very very early in this project. Expect bugs.
-
-We are (mostly) not accepting contributions yet. Small fixes may be considered. Big features will not be.
-
-## Documentation
-
-Full docs live in [docs/](./docs). There's no docs site yet.
-
-- [Install and first run](./docs/user/install.md)
-- [Permission modes](./docs/user/permission-modes.md)
-- [Keyboard shortcuts](./docs/user/keybindings.md)
-- [Project settings](./docs/user/project-settings.md)
-- [Appearance preferences](./docs/user/appearance.md)
-- [Remote access from a phone or another machine](./docs/user/remote-access.md)
-- [Connect Claude Code, Codex, ChatGPT and other agents over MCP](./docs/user/outside-agents.md)
-- [Keeping app and server in sync](./docs/user/updating.md)
-- [Source control integrations](./docs/user/source-control.md)
-- Multiple accounts: [Codex](./docs/user/providers-codex.md) · [Claude](./docs/user/providers-claude.md)
-- [Run T3 Code as a background service](./docs/user/background-service.md)
-
-Building from source? Start at [docs/internals/overview.md](./docs/internals/overview.md).
-
-## If you REALLY want to contribute still.... read this first
-
-### Install `vp`
-
-T3 Code uses Vite+ so you'll need to install the global `vp` command-line tool.
-
-#### macOS / Linux
-
-```bash
+# macOS / Linux
 curl -fsSL https://vite.plus | bash
-```
 
-#### Windows
-
-```bash
+# Windows (PowerShell)
 irm https://vite.plus/ps1 | iex
 ```
 
-Checkout their getting started guide for more information: https://viteplus.dev/guide/
-
-### Install dependencies
+### 2. Install Dependencies
 
 ```bash
 vp i
 ```
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before reporting a bug or opening a PR.
+### 3. Start Development Server
 
-Have a feature request? Start an [Ideas discussion](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
+```bash
+# Runs web client and local backend server concurrently
+npm run dev
+```
 
-Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
+Visit `http://localhost:5733` to open the web IDE surface.
+
+---
+
+## Documentation & Guides
+
+Comprehensive documentation is available in [`docs/`](./docs):
+
+- [IDE Layout & Workspaces](./docs/user/ide-layout.md)
+- [Install and First Run](./docs/user/install.md)
+- [Keyboard Shortcuts](./docs/user/keybindings.md)
+- [Permission Modes](./docs/user/permission-modes.md)
+- [Remote Access from Phone/Laptop](./docs/user/remote-access.md)
+- [Language Servers & Diagnostics](./docs/user/outside-agents.md)
+- [Source Control Integrations](./docs/user/source-control.md)
+
+Building from source or contributing? Read [`docs/internals/overview.md`](./docs/internals/overview.md).
+
+---
+
+## License
+
+MIT © [Paras Koundal](https://github.com/ParasKoundal) & original contributors.
