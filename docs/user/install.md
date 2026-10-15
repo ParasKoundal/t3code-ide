@@ -19,7 +19,7 @@ Download the pre-compiled installer for your operating system from [GitHub Relea
 
 ---
 
-## 🍏 macOS Installation Notes
+## 🍎 macOS Installation Notes
 
 1. Download the `.dmg` corresponding to your processor (`arm64` for Apple Silicon, `x64` for Intel).
 2. Open the disk image and drag **T3 Code IDE** into `/Applications`.
@@ -33,6 +33,18 @@ Download the pre-compiled installer for your operating system from [GitHub Relea
      ```bash
      xattr -cr "/Applications/T3 Code IDE.app"
      ```
+
+---
+
+## ⚡ Running Alongside Upstream T3 Code
+
+T3 Code IDE is fully decoupled from upstream T3 Code, allowing both applications to run concurrently on the same computer:
+
+- **Isolated Home & State Directory**: T3 Code IDE uses `~/.t3code-ide/` (upstream T3 Code uses `~/.t3/`).
+- **Independent SQLite Ownership**: Prevents database locking conflicts (`server-owner.sqlite`).
+- **Separate Electron User Profiles**: Stored under `~/Library/Application Support/t3code-ide`.
+- **Dedicated Custom URL Schemes**: `t3code-ide://` and `t3code-ide-dev://`.
+- **Dynamic Port Allocation**: Starts searching at 3773; if upstream T3 Code is actively using port 3773, T3 Code IDE automatically binds to 3774.
 
 ---
 
