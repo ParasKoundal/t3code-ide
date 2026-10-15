@@ -24,7 +24,8 @@ jobs:
           - arch: arm64
             runner: macos-14
           - arch: x64
-            runner: macos-13
+            # GitHub retired the macos-13 image; this is the current Intel runner.
+            runner: macos-15-intel
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -39,14 +40,17 @@ jobs:
         run: vp i
 
       - name: Build macOS DMG
-        run: node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch ${{ matrix.arch }}
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        shell: bash
+        run: node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch ${{ matrix.arch }} --output-dir dist/desktop --build-version "${TAG#v}"
 
       - name: Upload DMG to Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
-          gh release upload "$TAG" dist/desktop/*.dmg --clobber || true
+          gh release upload "$TAG" dist/desktop/*.dmg --clobber
 
   build-windows-exe:
     name: Build Windows NSIS Installer (.exe)
@@ -65,7 +69,10 @@ jobs:
         run: vp i
 
       - name: Build Windows NSIS Installer
-        run: node scripts/build-desktop-artifact.ts --platform win --target nsis --arch x64
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        shell: bash
+        run: node scripts/build-desktop-artifact.ts --platform win --target nsis --arch x64 --output-dir dist/desktop --build-version "${TAG#v}"
 
       - name: Upload EXE to Release
         env:
@@ -73,7 +80,7 @@ jobs:
           TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         shell: bash
         run: |
-          gh release upload "$TAG" dist/desktop/*.exe --clobber || true
+          gh release upload "$TAG" dist/desktop/*.exe --clobber
 
   build-linux-appimage:
     name: Build Linux AppImage
@@ -83,7 +90,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install System Libraries
-        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config imagemagick
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
@@ -95,11 +102,14 @@ jobs:
         run: vp i
 
       - name: Build Linux AppImage
-        run: node scripts/build-desktop-artifact.ts --platform linux --target AppImage --arch x64
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        shell: bash
+        run: node scripts/build-desktop-artifact.ts --platform linux --target AppImage --arch x64 --output-dir dist/desktop --build-version "${TAG#v}"
 
       - name: Upload AppImage to Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
-          gh release upload "$TAG" dist/desktop/*.AppImage --clobber || true
+          gh release upload "$TAG" dist/desktop/*.AppImage --clobber
