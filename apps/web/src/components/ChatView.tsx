@@ -470,6 +470,9 @@ import {
   RightPanelMaximizeControl,
 } from "./chat/PanelLayoutControls";
 import { useIdeLayoutStore } from "../ideLayoutStore";
+import { parseWorkspaceScopeKey, useWorkspaceStore } from "../workspaceStore";
+import { resolveWorkspaceRootFile, type WorkspaceRoot } from "./files/workspaceRoots";
+import { resolveWorkspaceFilePath } from "@t3tools/shared/path";
 import { RESIZABLE_WIDTH_PROPERTY, useResizableWidth } from "~/hooks/useResizableWidth";
 import { RightPanelResizeHandle } from "./preview/RightPanelResizeHandle";
 import { expandedImageKey, type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
@@ -722,6 +725,7 @@ const DevicePanel = lazy(() =>
   import("./device/DevicePanel").then((module) => ({ default: module.DevicePanel })),
 );
 const FilePreviewPanel = lazy(() => import("./files/FilePreviewPanel"));
+const EMPTY_WORKSPACE_ROOTS: readonly WorkspaceRoot[] = [];
 const IdeExplorer = lazy(() =>
   import("./files/IdeExplorer").then((module) => ({ default: module.IdeExplorer })),
 );
@@ -4276,6 +4280,35 @@ export default function ChatView(props: ChatViewProps) {
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
   const activeThreadWorktreePath = activeThread?.worktreePath ?? null;
   const activeWorkspaceRoot = activeThreadWorktreePath ?? activeProjectCwd ?? undefined;
+  // A sidebar workspace that includes this thread's project adds the other
+  // member folders on this machine to the explorer, and makes their files
+  // editable here.
+  const sidebarScopeKey = useUiStateStore((store) => store.sidebarProjectScopeKey);
+  const ideWorkspace = useWorkspaceStore((store) => {
+    const workspaceId = parseWorkspaceScopeKey(sidebarScopeKey);
+    if (workspaceId === null || !activeProject) return null;
+    const workspace = store.workspaces.find((candidate) => candidate.id === workspaceId) ?? null;
+    return workspace?.projectRefKeys.includes(`${activeProject.environmentId}:${activeProject.id}`)
+      ? workspace
+      : null;
+  });
+  const ideWorkspaceRoots = useMemo<readonly WorkspaceRoot[]>(() => {
+    if (!ideWorkspace || !activeProject) return EMPTY_WORKSPACE_ROOTS;
+    const members = new Set(ideWorkspace.projectRefKeys);
+    const roots = allProjects
+      .filter(
+        (project) =>
+          project.environmentId === activeProject.environmentId &&
+          project.id !== activeProject.id &&
+          members.has(`${project.environmentId}:${project.id}`),
+      )
+      .map((project) => ({ cwd: project.workspaceRoot, title: project.title }));
+    return roots.length > 0 ? roots : EMPTY_WORKSPACE_ROOTS;
+  }, [activeProject, allProjects, ideWorkspace]);
+  const rightPanelFileRoot =
+    renderedRightPanelSurface?.kind === "file" && !renderedRightPanelSurface.attachment
+      ? resolveWorkspaceRootFile(renderedRightPanelSurface.relativePath, ideWorkspaceRoots)
+      : null;
   useLayoutEffect(() => {
     if (
       threadDetailLoading ||
@@ -11303,18 +11336,18 @@ export default function ChatView(props: ChatViewProps) {
           key={`${activeThread.environmentId}:${
             renderedRightPanelSurface.kind === "file" && renderedRightPanelSurface.attachment
               ? `attachment:${renderedRightPanelSurface.attachment.id}`
-              : activeWorkspaceRoot
+              : (rightPanelFileRoot?.root.cwd ?? activeWorkspaceRoot)
           }`}
           environmentId={activeThread.environmentId}
-          cwd={activeWorkspaceRoot ?? ""}
-          projectName={activeProject?.title ?? ""}
+          cwd={rightPanelFileRoot?.root.cwd ?? activeWorkspaceRoot ?? ""}
+          projectName={rightPanelFileRoot?.root.title ?? activeProject?.title ?? ""}
           threadRef={activeThreadRef}
           composerDraftTarget={composerDraftTarget}
           keybindings={keybindings}
           availableEditors={availableEditors}
           relativePath={
             renderedRightPanelSurface.kind === "file"
-              ? renderedRightPanelSurface.relativePath
+              ? (rightPanelFileRoot?.relativePath ?? renderedRightPanelSurface.relativePath)
               : null
           }
           {...(renderedRightPanelSurface.kind === "file" && renderedRightPanelSurface.attachment
@@ -11330,8 +11363,21 @@ export default function ChatView(props: ChatViewProps) {
               ? renderedRightPanelSurface.revealRequestId
               : 0
           }
-          onOpenFile={openFileSurface}
-          onPendingChange={handleFilePendingChange}
+          onOpenFile={
+            rightPanelFileRoot
+              ? (path) =>
+                  openFileSurface(resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd))
+              : openFileSurface
+          }
+          onPendingChange={
+            rightPanelFileRoot
+              ? (path, pending) =>
+                  handleFilePendingChange(
+                    resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd),
+                    pending,
+                  )
+              : handleFilePendingChange
+          }
           explorerHidden={ideLayoutActive}
           selectedFilePending={
             renderedRightPanelSurface.kind === "file" &&
@@ -12186,6 +12232,8 @@ export default function ChatView(props: ChatViewProps) {
                   environmentId={activeThreadRef.environmentId}
                   cwd={activeWorkspaceRoot}
                   projectName={activeProject.title}
+                  workspaceName={ideWorkspace?.name ?? null}
+                  extraRoots={ideWorkspaceRoots}
                   selectedPath={
                     renderedRightPanelSurface?.kind === "file" &&
                     !renderedRightPanelSurface.attachment
