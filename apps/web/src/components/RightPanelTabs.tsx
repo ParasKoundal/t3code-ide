@@ -157,6 +157,8 @@ interface RightPanelTabsProps {
    */
   ideLayout?: boolean;
   explorer?: ReactNode;
+  /** Shown under the active surface, such as the terminal drawer in IDE layout. */
+  bottomDock?: ReactNode;
   children: ReactNode;
 }
 
@@ -1513,6 +1515,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
               props.children
             )}
           </div>
+          {props.bottomDock}
         </div>
       </div>
     </PreviewPanelShell>
