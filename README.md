@@ -5,131 +5,194 @@
 <h1 align="center">T3 Code IDE</h1>
 
 <p align="center">
-  <strong>The AI-native development environment and multi-agent harness.</strong><br>
-  Unified Monaco editor, multi-root workspaces, Open VSX extensions, and docked agent orchestration across Claude Code, Codex, Cursor, Grok Build, OpenCode, and Antigravity.
+  <strong>The open-source, AI-native development environment where coding agents live inside your editor.</strong><br>
+  Unified Monaco editor, multi-root workspaces, Open VSX extensions, and docked multi-agent orchestration across Claude Code, Codex, Cursor CLI, Grok Build, OpenCode, and Antigravity.
 </p>
 
 <p align="center">
   <a href="https://github.com/ParasKoundal/t3code-ide/releases/latest"><img src="https://img.shields.io/badge/Download-Latest_Release-38bdf8?style=for-the-badge&logo=github" alt="Download Latest Release" /></a>
-  <a href="https://github.com/ParasKoundal/t3code-ide/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-818cf8?style=for-the-badge" alt="License" /></a>
+  <a href="https://open-vsx.org"><img src="https://img.shields.io/badge/Marketplace-Open_VSX-6366f1?style=for-the-badge&logo=visualstudiocode" alt="Open VSX" /></a>
+  <a href="https://github.com/ParasKoundal/t3code-ide/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-a855f7?style=for-the-badge" alt="License" /></a>
 </p>
+
+---
+
+## 💡 Why T3 Code IDE?
+
+Developers currently juggle a fractured workflow: VS Code in one window, Claude Code in a terminal tab, Cursor for inline diffs, web chat tabs for questions, and separate CLIs with no shared context.
+
+**T3 Code IDE unites the entire loop into a single, cohesive desktop workbench.**
+
+```
++-------------------+-----------------------------------------------+-------------------------------+
+| ACTIVITY &        | MONACO CODE EDITOR                            | MULTI-AGENT CONTROL DECK      |
+| WORKSPACES        |                                               |                               |
+|                   |  [App.tsx] [main.rs] [schema.prisma]          |  [Claude 3.7] [Codex] [Grok]  |
+| 📂 Workspaces     |  1 | import React from "react";               |                               |
+|    ├── web/       |  2 |                                          |  ⚡ Turn 3 / 5:               |
+|    ├── server/    |  3 | // Inline Agent Edit [Cmd+K]             |  "Refactoring SQLite schema   |
+|    └── mobile/    |  4 | export function App() { ... }            |   and adding WAL journal..."  |
+|                   |                                               |                               |
+| 🌿 Git Changes    |                                               |  [Diff Preview: +34 -8 lines] |
+|    • M App.tsx    |                                               |  [Accept] [Reject] [Steer]    |
+|                   +-----------------------------------------------+                               |
+| 🧩 Open VSX Exts  | DOCKED TERMINAL DRAWER (Ctrl+`)               |  > Type prompt or /command    |
+|    • Tokyo Night  | $ pnpm test --watch                           |  [Queue Action] [Steer Model] |
++-------------------+-----------------------------------------------+-------------------------------+
+```
 
 ---
 
 ## 🚀 1-Click Direct Downloads
 
-Pre-built binaries are available for desktop and mobile companion devices. **No Node.js, Git, or terminal setup required.**
+Pre-built binaries are packaged for macOS, Windows, Linux, and mobile companions. **No Node.js, Rust toolchains, or terminal setup required.**
 
-| Platform    | Download Link                                                                                                                       | Architecture / Format              | Notes                                  |
-| :---------- | :---------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- | :------------------------------------- |
-| **macOS**   | [**Download .DMG**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Apple Silicon (`arm64`, M1–M4)     | Drag to `/Applications`                |
-| **macOS**   | [**Download .DMG**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Intel (`x64`)                      | Drag to `/Applications`                |
-| **Windows** | [**Download .EXE**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Windows 10 / 11 (`x64` NSIS Setup) | 1-Click Installer with WSL support     |
-| **Linux**   | [**Download .AppImage**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                | Linux (`x64` AppImage / `.deb`)    | Standalone portable executable         |
-| **Android** | [**Download .APK**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Universal Android (`.apk`)         | Companion app for phone/tablet control |
-| **iOS**     | [**App Store**](https://apps.apple.com/app/t3-code/id6739832262) \| [**TestFlight Beta**](https://testflight.apple.com/join/t3code) | iPhone & iPad                      | Official Apple mobile companion        |
+| Platform    | Download                                                                                                                            | Architecture / Package             | Notes                               |
+| :---------- | :---------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- | :---------------------------------- |
+| **macOS**   | [**Download .DMG**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Apple Silicon (`arm64`, M1–M4)     | Drag-and-drop to `/Applications`    |
+| **macOS**   | [**Download .DMG**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Intel (`x64`)                      | Drag-and-drop to `/Applications`    |
+| **Windows** | [**Download .EXE**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Windows 10 / 11 (`x64` NSIS Setup) | 1-Click Installer with WSL support  |
+| **Linux**   | [**Download .AppImage**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                | Standalone Portable (`x64`)        | `chmod +x` and run directly         |
+| **Android** | [**Download .APK**](https://github.com/ParasKoundal/t3code-ide/releases/latest)                                                     | Universal Android (`.apk`)         | Mobile companion for phone & tablet |
+| **iOS**     | [**App Store**](https://apps.apple.com/app/t3-code/id6739832262) \| [**TestFlight Beta**](https://testflight.apple.com/join/t3code) | iPhone & iPad                      | Official Apple mobile companion     |
 
 > [!TIP]
-> **View all releases and checksums**: Visit the [Releases Page](https://github.com/ParasKoundal/t3code-ide/releases).
+> **Release Verification**: All builds, release hashes, and changelogs are available on the [GitHub Releases Page](https://github.com/ParasKoundal/t3code-ide/releases).
 
 ---
 
-## 📦 Platform Installation Guides
+## ⚡ Core Superpowers
 
-### macOS (.dmg)
+### 🤖 Cross-Provider Multi-Agent Orchestration
 
-1. Download `T3-Code-IDE-<version>-arm64.dmg` (for M-series Macs) or `-x64.dmg` (for Intel).
-2. Open the `.dmg` file and drag **T3 Code IDE** into your **Applications** folder.
-3. _First run note_: As an open-source community release, if macOS Gatekeeper displays _"App cannot be opened because Apple cannot check it for malicious software"_, simply right-click the app in Applications and click **Open**, or run this one-time command in Terminal:
-   ```bash
-   xattr -cr "/Applications/T3 Code IDE.app"
-   ```
+Never get locked into a single AI model or proprietary cloud. Switch between **Claude 3.7 Sonnet**, **OpenAI Codex**, **Cursor CLI**, **Grok Build**, **OpenCode**, and **Google Antigravity** within the exact same workspace and conversation thread. Steer running models, queue follow-ups, and review streamed tool operations in real time.
 
-### Windows (.exe)
+### ✏️ Cursor-Style Inline Code Edit (`Cmd+K` / `Ctrl+K`)
 
-1. Download `T3-Code-IDE-Setup-<version>.exe`.
-2. Double-click the installer to install T3 Code IDE.
-3. _SmartScreen note_: If Windows SmartScreen shows _"Windows protected your PC"_, click **More info** → **Run anyway**.
+Highlight any selection in the Monaco editor, press `Cmd+K`, and prompt the agent directly inside your file buffer. Inspect syntax-highlighted diffs side-by-side and accept or reject individual hunks before touching disk.
 
-### Android Companion (.apk)
+### 🧩 Built-in Open VSX Extension & Theme Marketplace
 
-1. Download `t3code-ide-<version>.apk` directly on your Android phone or tablet.
-2. Tap the downloaded file and select **Install** (enable _"Allow from this source"_ if prompted by your browser).
-3. Open **T3 Code IDE** on your desktop, navigate to **Settings → Connections**, and scan the QR code to pair your phone instantly over your local network.
+Search, install, configure, and toggle extensions and color themes directly from [Open VSX](https://open-vsx.org). Enjoy Tokyo Night, Catppuccin, One Dark, and language packs in a fully open-source environment free of proprietary vendor tracking.
 
----
+### 📂 Multi-Root Workspaces & Worktree Scopes
 
-## ✨ What Makes T3 Code IDE Different?
+Organize complex codebases by grouping multiple directories, microservices, or monorepo packages under persistent workspace scopes. Chat threads and terminal drawers automatically track their respective root context and Git state.
 
-Unlike standalone chat wrappers or traditional code editors, **T3 Code IDE** merges agentic execution with full IDE capabilities:
+### 💻 Integrated Docked Terminal Drawer (<code>Ctrl+`</code>)
 
-- **Integrated IDE Layout**: Side-by-side docked AI chat, Monaco code editor, and persistent multi-root file explorer. Switch effortlessly between chat-first and IDE modes (`Ctrl+Shift+I`).
-- **Inline Agent Edits**: Cursor-style inline diff previews and floating edit widgets directly within the editor buffer (`Ctrl+K` / `Cmd+K`).
-- **Open VSX Extension Marketplace**: Search, install, toggle, and configure VS Code-compatible extensions and themes directly from [Open VSX](https://open-vsx.org).
-- **Multi-Root Workspaces**: Group multiple repositories or project folders under unified workspace scopes with dedicated agent chat threads per workspace or sub-project.
-- **Docked Terminal Drawer**: Integrated terminal docked beneath the editor (<code>Ctrl+`</code>) for running project commands without switching contexts.
-- **Language Server Intelligence**: In-editor LSP diagnostics, error/warning underlines, hover tooltips, and Go to Definition navigation (`vtsls`, `pyright`, `gopls`, `rust-analyzer`).
-- **Multi-Agent Harness**: Native support for Codex, Claude, Cursor CLI, Grok Build, OpenCode, and Antigravity with full local and remote control surfaces.
+Never leave your editor to run scripts. Open the docked terminal drawer beneath Monaco to execute tests, run dev servers, or invoke CLI tooling with shared environment variables.
+
+### 📱 Real-Time Mobile Companion (iOS & Android)
+
+Step away from your desk while an agent runs a heavy build or deep refactor. Scan the local QR code (**Settings → Connections**) to pair your smartphone or tablet over your local WiFi or Tailscale mesh. Monitor progress, approve file diffs, and prompt agents from anywhere.
 
 ---
 
-## 🔑 AI Providers Setup
+## 📊 How T3 Code IDE Compares
 
-Authenticate at least one supported agent provider to power your IDE:
+| Feature                        |                      T3 Code IDE                       |         Cursor          | VS Code + Plugins  | Terminal Agent CLIs |
+| :----------------------------- | :----------------------------------------------------: | :---------------------: | :----------------: | :-----------------: |
+| **Supported AI Agents**        | **Claude, Codex, Cursor, Grok, OpenCode, Antigravity** | Proprietary Cursor only |  Plugin-dependent  |  Single agent only  |
+| **Integrated Monaco Editor**   |                       ✅ **Yes**                       |         ✅ Yes          |       ✅ Yes       |        ❌ No        |
+| **Inline Code Edit (`Cmd+K`)** |                       ✅ **Yes**                       |         ✅ Yes          |  Plugin-dependent  |        ❌ No        |
+| **Open VSX Marketplace**       |                    ✅ **Built-in**                     |   ❌ Proprietary fork   | ❌ Microsoft store |        ❌ No        |
+| **Multi-Root Workspaces**      |                       ✅ **Yes**                       |         ✅ Yes          |       ✅ Yes       |        ❌ No        |
+| **Docked Terminal Drawer**     |                       ✅ **Yes**                       |         ✅ Yes          |       ✅ Yes       |   Separate window   |
+| **Mobile Companion Pairing**   |               ✅ **Yes (iOS & Android)**               |          ❌ No          |       ❌ No        |        ❌ No        |
+| **100% Open Source (MIT)**     |                       ✅ **Yes**                       |          ❌ No          |  Partially (Core)  |       Varies        |
 
-- **Claude**: Install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
-- **Codex**: Install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
-- **Cursor**: Install [Cursor CLI](https://cursor.com/cli) and run `agent login`
-- **Grok Build**: Install [Grok Build CLI](https://x.ai/cli) and run `grok login`
-- **OpenCode**: Install [OpenCode](https://opencode.ai) and run `opencode auth login`
-- **Antigravity**: Enable in Settings, then click **Install Antigravity** and sign in with Google.
+---
+
+## ⌨️ Productivity Keyboard Shortcuts
+
+| Shortcut (macOS / Windows)     | Action                                                |
+| :----------------------------- | :---------------------------------------------------- |
+| `Cmd+Shift+I` / `Ctrl+Shift+I` | **Toggle IDE Mode ⇄ Chat-First Mode**                 |
+| `Cmd+K` / `Ctrl+K`             | **Inline Agent Code Edit in Editor Buffer**           |
+| <code>Ctrl+`</code>            | **Toggle Docked Terminal Drawer**                     |
+| `Cmd+B` / `Ctrl+B`             | **Toggle Left Sidebar (Explorer / Git / Extensions)** |
+| `Cmd+P` / `Ctrl+P`             | **Quick Open File / Command Palette**                 |
+| `Cmd+Shift+M` / `Ctrl+Shift+M` | **Switch AI Model / Agent Provider**                  |
+| `Cmd+Shift+G` / `Ctrl+Shift+G` | **Git Branch & Worktree Switcher**                    |
+| `Cmd+Shift+X` / `Ctrl+Shift+X` | **Switch Active Workspace Scope**                     |
+| `Cmd+Enter` / `Ctrl+Enter`     | **Send Prompt / Steer Running Turn**                  |
+
+---
+
+## 🚦 Getting Started in 60 Seconds
+
+### Step 1: Install & Launch
+
+Download the installer for your platform from the [Releases](https://github.com/ParasKoundal/t3code-ide/releases/latest) table above and launch **T3 Code IDE**.
+
+_(macOS Gatekeeper tip: Right-click app → **Open**, or run `xattr -cr "/Applications/T3 Code IDE.app"`. Windows tip: Click **More info → Run anyway**)._
+
+### Step 2: Authenticate Any Provider
+
+T3 Code IDE talks directly to local agent CLIs on your machine. Authenticate at least one provider:
+
+```bash
+# Claude Code
+claude auth login
+
+# OpenAI Codex
+codex login
+
+# Cursor CLI
+agent login
+
+# Grok Build
+grok login
+
+# OpenCode
+opencode auth login
+
+# Google Antigravity
+# Open Settings → Providers in T3 Code IDE, click "Install Antigravity" and Sign in with Google.
+```
+
+### Step 3: Open Your Project & Build
+
+Press `Cmd+O` to open your project directory, choose your model from the top-right selector, and start coding!
 
 ---
 
 ## 🛠️ Building from Source (Contributors)
 
-If you are developing or contributing to T3 Code IDE, you can build from source using [Vite+](https://vite.plus):
-
-### 1. Install Vite+ (`vp`)
+T3 Code IDE uses [Vite+](https://vite.plus) for unified package management and rapid builds.
 
 ```bash
-# macOS / Linux
-curl -fsSL https://vite.plus | bash
+# 1. Install Vite+ package manager
+curl -fsSL https://vite.plus | bash          # macOS / Linux
+irm https://vite.plus/ps1 | iex              # Windows PowerShell
 
-# Windows (PowerShell)
-irm https://vite.plus/ps1 | iex
-```
-
-### 2. Install & Run
-
-```bash
-# Install all workspace dependencies
+# 2. Clone repository & install dependencies
+git clone https://github.com/ParasKoundal/t3code-ide.git
+cd t3code-ide
 vp i
 
-# Start local server and web client concurrently
+# 3. Start development server (web client + backend)
 npm run dev
 
-# Or build the desktop DMG / EXE locally:
-npm run dist:desktop:dmg       # macOS .dmg
-npm run dist:desktop:win       # Windows .exe
+# 4. Or compile desktop installers locally:
+npm run dist:desktop:dmg                     # macOS .dmg
+npm run dist:desktop:win                     # Windows .exe installer
+npm run dist:desktop:linux                   # Linux .AppImage
 ```
-
-Open `http://localhost:5733` to access the local web environment.
 
 ---
 
-## 📚 Documentation & Guides
+## 📖 In-Depth Documentation
 
-Comprehensive documentation is available in [`docs/`](./docs):
-
-- [IDE Layout & Workspaces](./docs/user/ide-layout.md)
-- [Installation Guide & Desktop Setup](./docs/user/install.md)
-- [Keyboard Shortcuts](./docs/user/keybindings.md)
-- [Permission Modes & Safety](./docs/user/permission-modes.md)
-- [Remote Access from Phone/Laptop](./docs/user/remote-access.md)
-- [Language Servers & Diagnostics](./docs/user/outside-agents.md)
-- [Source Control Integrations](./docs/user/source-control.md)
-- [Architecture & Internals](./docs/internals/overview.md)
+- [**IDE Layout & Workspaces Guide**](./docs/user/ide-layout.md)
+- [**Installation & Remote Access**](./docs/user/install.md)
+- [**Full Keyboard Shortcuts Reference**](./docs/user/keybindings.md)
+- [**Permission Modes & Sandboxing**](./docs/user/permission-modes.md)
+- [**Mobile Companion App Pairing**](./docs/user/remote-access.md)
+- [**Language Server (LSP) Setup**](./docs/user/outside-agents.md)
+- [**Git & Source Control Integrations**](./docs/user/source-control.md)
+- [**Architecture & Internals Overview**](./docs/internals/overview.md)
 
 ---
 
