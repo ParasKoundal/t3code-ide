@@ -58,6 +58,7 @@ import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import {
   ArrowLeftIcon,
+  BlocksIcon,
   ChartNoAxesColumnIcon,
   CheckIcon,
   ChevronRightIcon,
@@ -1983,6 +1984,25 @@ function OpenCommandPaletteDialog(props: {
 
   if (activeThread !== null) {
     const thread = activeThread;
+    const threadRef = scopeThreadRef(thread.environmentId, thread.id);
+    actionItems.push({
+      kind: "action",
+      value: "action:open-extensions",
+      searchTerms: [
+        "extensions",
+        "plugins",
+        "marketplace",
+        "vsx",
+        "open vsx",
+        "themes",
+        "languages",
+      ],
+      title: "View: Show Extensions",
+      icon: <BlocksIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        useRightPanelStore.getState().open(threadRef, "extensions");
+      },
+    });
     actionItems.push({
       kind: "action",
       value: "action:restart-agent-session",

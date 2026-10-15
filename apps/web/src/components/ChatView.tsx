@@ -729,6 +729,9 @@ const EMPTY_WORKSPACE_ROOTS: readonly WorkspaceRoot[] = [];
 const IdeExplorer = lazy(() =>
   import("./files/IdeExplorer").then((module) => ({ default: module.IdeExplorer })),
 );
+const ExtensionsPanel = lazy(() =>
+  import("./extensions/ExtensionsPanel").then((module) => ({ default: module.ExtensionsPanel })),
+);
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
 const TYPE_TO_FOCUS_EDITABLE_SELECTOR = [
   "input",
@@ -5577,6 +5580,10 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadRef?.environmentId ?? null,
   );
   const [deviceSetupThread, setDeviceSetupThread] = useState<ScopedThreadRef | null>(null);
+  const addExtensionsSurface = useCallback(() => {
+    if (!activeThreadRef) return;
+    useRightPanelStore.getState().open(activeThreadRef, "extensions");
+  }, [activeThreadRef]);
   const addDeviceSurface = useCallback(() => {
     if (!activeThreadRef) return;
     if (!deviceState.onboardingCompleted || deviceState.hostStatus === "disabled") {
@@ -11341,6 +11348,10 @@ export default function ChatView(props: ChatViewProps) {
           }}
         />
       </Suspense>
+    ) : renderedRightPanelSurface?.kind === "extensions" ? (
+      <Suspense fallback={null}>
+        <ExtensionsPanel onClose={() => closeRightPanelSurface(renderedRightPanelSurface)} />
+      </Suspense>
     ) : (renderedRightPanelSurface?.kind === "files" ||
         renderedRightPanelSurface?.kind === "file") &&
       ((activeProject && activeWorkspaceRoot) ||
@@ -12299,6 +12310,8 @@ export default function ChatView(props: ChatViewProps) {
           onAddPullRequest={addPullRequestSurface}
           onAddPullRequests={addPullRequestsSurface}
           onAddDevice={addDeviceSurface}
+          onAddExtensions={addExtensionsSurface}
+          extensionsAvailable={true}
           browserAvailable={canOperatePreview && browserAvailable}
           terminalAvailable={activeProject !== null && canOperateTerminal}
           diffAvailable={isServerThread && isGitRepo}
@@ -12358,6 +12371,8 @@ export default function ChatView(props: ChatViewProps) {
             onAddPullRequest={addPullRequestSurface}
             onAddPullRequests={addPullRequestsSurface}
             onAddDevice={addDeviceSurface}
+            onAddExtensions={addExtensionsSurface}
+            extensionsAvailable={true}
             browserAvailable={canOperatePreview && browserAvailable}
             terminalAvailable={activeProject !== null && canOperateTerminal}
             diffAvailable={isServerThread && isGitRepo}

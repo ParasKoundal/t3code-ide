@@ -26,6 +26,7 @@ import { restrictToFirstScrollableAncestor, restrictToHorizontalAxis } from "@dn
 import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  Blocks,
   Smartphone,
   ChevronDown,
   ChevronLeft,
@@ -150,6 +151,8 @@ interface RightPanelTabsProps {
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
   deviceAvailable: boolean;
+  onAddExtensions?: (() => void) | undefined;
+  extensionsAvailable?: boolean | undefined;
   pullRequestStatusSeeds?: Readonly<Record<string, PullRequestTabStatusSeed>>;
   /**
    * IDE layout: the panel fills the space beside the docked chat and shows
@@ -186,6 +189,7 @@ const SURFACE_DISABLED_REASONS = {
   pullRequest: "This thread's branch has no pull request yet.",
   pullRequests: "No linked pull requests are available for this thread.",
   device: "Devices are only available from a thread.",
+  extensions: "Extensions are only available from a thread.",
 } as const;
 
 /** Overlays that must win over the launcher's letter shortcuts. */
@@ -209,6 +213,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   pullRequest: "No pull request on this branch yet.",
   pullRequests: "No linked pull requests available.",
   device: "Available from a thread.",
+  extensions: "Available from a thread.",
 } as const;
 
 type TabContextMenuAction =
@@ -356,6 +361,8 @@ function RightPanelEmptyState(props: {
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
   deviceAvailable: boolean;
+  onAddExtensions?: (() => void) | undefined;
+  extensionsAvailable?: boolean | undefined;
 }) {
   // -1 means no highlight: it only appears on hover or arrow use.
   const [highlight, setHighlight] = useState(-1);
@@ -417,6 +424,15 @@ function RightPanelEmptyState(props: {
       available: props.deviceAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.device,
       onClick: props.onAddDevice,
+    },
+    {
+      label: "Extensions",
+      description: "Browse and install Open VSX extensions.",
+      icon: Blocks,
+      shortcut: "X",
+      available: (props.extensionsAvailable ?? true) && props.onAddExtensions !== undefined,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.extensions,
+      onClick: props.onAddExtensions ?? (() => {}),
     },
   ] as const;
 
@@ -628,6 +644,8 @@ function surfaceTitle(
       return "Pull requests";
     case "device":
       return surface.title ?? surface.target?.name ?? "Device";
+    case "extensions":
+      return "Extensions";
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -717,6 +735,8 @@ function SurfaceIcon({
       ) : (
         <Smartphone className="size-3 shrink-0" />
       );
+    case "extensions":
+      return <Blocks className="size-3 shrink-0" />;
   }
 }
 
@@ -998,6 +1018,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       available: props.deviceAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.device,
       onClick: props.onAddDevice,
+    },
+    {
+      label: "Extensions",
+      icon: Blocks,
+      shortcut: "X",
+      available: (props.extensionsAvailable ?? true) && props.onAddExtensions !== undefined,
+      disabledReason: SURFACE_DISABLED_REASONS.extensions,
+      onClick: props.onAddExtensions ?? (() => {}),
     },
   ] as const;
 
@@ -1510,6 +1538,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                 pullRequestAvailable={props.pullRequestAvailable}
                 pullRequestsAvailable={props.pullRequestsAvailable}
                 deviceAvailable={props.deviceAvailable}
+                onAddExtensions={props.onAddExtensions}
+                extensionsAvailable={props.extensionsAvailable}
               />
             ) : (
               props.children
