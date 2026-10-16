@@ -20,7 +20,7 @@ interface IdeLayoutState {
 export const useIdeLayoutStore = create<IdeLayoutState>()(
   persist(
     (set) => ({
-      enabled: false,
+      enabled: true,
       setEnabled: (enabled) => set({ enabled }),
       toggle: () => set((state) => ({ enabled: !state.enabled })),
     }),
