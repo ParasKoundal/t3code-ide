@@ -11097,6 +11097,18 @@ export default function ChatView(props: ChatViewProps) {
                   openFileSurface(resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd))
               : openFileSurfaceStable
           }
+          onNavigateFolder={(relativePath, folderTrail, keepSource) =>
+            useRightPanelStore
+              .getState()
+              .navigateFolder(
+                activeThreadRef,
+                renderedRightPanelSurface.id,
+                relativePath,
+                folderTrail,
+                keepSource,
+              )
+          }
+          folderTrail={renderedRightPanelSurface.folderTrail}
           onPendingChange={
             rightPanelFileRoot
               ? (path, pending) =>
