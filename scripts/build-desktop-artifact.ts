@@ -2863,7 +2863,13 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       // requires hardened runtime off, or library validation rejects Electron's
       // own frameworks.
       ...(signed
-        ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") }
+        ? {
+            sign: path.join(repoRoot, "scripts/sign-macos.ts"),
+            notarize:
+              process.env.APPLE_API_KEY || process.env.APPLE_ID || process.env.APPLE_API_KEY_ID
+                ? true
+                : false,
+          }
         : { identity: "-", hardenedRuntime: false }),
       ...(macPasskeySigning
         ? {
@@ -3811,10 +3817,13 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   const stageProdResourcesDir = path.join(stageAppDir, "apps/desktop/prod-resources");
   yield* fs.copy(stageResourcesDir, stageProdResourcesDir);
 
+  const repoEnv = loadRepoEnv({ repoRoot });
   const configuredMacPasskeySigning =
-    options.platform === "mac" && options.signed
+    options.platform === "mac" &&
+    options.signed &&
+    Boolean(repoEnv.T3CODE_MACOS_PROVISIONING_PROFILE)
       ? yield* Effect.try({
-          try: () => resolveMacPasskeySigningConfiguration(loadRepoEnv({ repoRoot })),
+          try: () => resolveMacPasskeySigningConfiguration(repoEnv),
           catch: MacPasskeySigningConfigurationResolutionError.fromCause,
         })
       : undefined;

@@ -44,8 +44,31 @@ jobs:
       - name: Build macOS DMG
         env:
           TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         shell: bash
-        run: node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch ${{ matrix.arch }} --output-dir dist/desktop --build-version "${TAG#v}"
+        run: |
+          set -euo pipefail
+          args=(--platform mac --target dmg --arch "${{ matrix.arch }}" --output-dir dist/desktop --build-version "${TAG#v}")
+          if [[ -n "${CSC_LINK:-}" && -n "${CSC_KEY_PASSWORD:-}" ]]; then
+            echo "Apple Developer signing secrets detected. Enabling --signed."
+            if [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_KEY_ID:-}" ]]; then
+              key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+              printf "%s" "$APPLE_API_KEY" > "$key_path"
+              export APPLE_API_KEY="$key_path"
+            fi
+            if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
+              export T3CODE_APPLE_TEAM_ID="$APPLE_TEAM_ID"
+            fi
+            args+=(--signed)
+          else
+            echo "No Apple signing secrets provided; building ad-hoc signed DMG."
+          fi
+          node scripts/build-desktop-artifact.ts "${args[@]}"
 
       - name: Upload DMG to Release
         env:

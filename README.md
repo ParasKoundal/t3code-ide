@@ -57,7 +57,15 @@ Pre-built binaries are packaged for macOS, Windows, Linux, and mobile companions
 | **iOS**     | [**App Store**](https://apps.apple.com/app/t3-code/id6739832262) \| [**TestFlight Beta**](https://testflight.apple.com/join/t3code) | iPhone & iPad                      | Official Apple mobile companion     |
 
 > [!TIP]
-> **Release Verification**: All builds, release hashes, and changelogs are available on the [GitHub Releases Page](https://github.com/ParasKoundal/t3code-ide/releases).
+> **macOS 1-Line Install (Zero Gatekeeper Warnings)**:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/ParasKoundal/t3code-ide/main/scripts/install-mac.sh | bash
+> ```
+>
+> Or via Homebrew: `brew install --cask ParasKoundal/t3code-ide/t3code-ide`
+>
+> _(If you downloaded the .dmg manually and see "Apple could not verify...", clear quarantine with `xattr -cr "/Applications/T3 Code IDE.app"`)_
 
 ---
 

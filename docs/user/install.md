@@ -19,20 +19,34 @@ Download the pre-compiled installer for your operating system from [GitHub Relea
 
 ---
 
-## 🍎 macOS Installation Notes
+## 🍎 macOS Installation (Zero-Warning)
 
-1. Download the `.dmg` corresponding to your processor (`arm64` for Apple Silicon, `x64` for Intel).
+### Option 1: 1-Line Terminal Install (Recommended — Bypasses Gatekeeper Warnings)
+
+Open Terminal and run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ParasKoundal/t3code-ide/main/scripts/install-mac.sh | bash
+```
+
+_This automatically detects your Mac architecture (Apple Silicon vs. Intel), installs the latest release to `/Applications`, and clears Gatekeeper quarantine so the app launches immediately with zero warnings._
+
+### Option 2: Homebrew Cask
+
+```bash
+brew install --cask ParasKoundal/t3code-ide/t3code-ide
+```
+
+### Option 3: Manual DMG Download
+
+1. Download the `.dmg` from the table above (`arm64` for Apple Silicon, `x64` for Intel).
 2. Open the disk image and drag **T3 Code IDE** into `/Applications`.
-3. **Gatekeeper Notice**: Unsigned community open-source builds may prompt:
-
-   > _"T3 Code IDE can’t be opened because Apple cannot check it for malicious software."_
-
-   To open:
-   - Right-click **T3 Code IDE.app** in Finder and choose **Open**, then click **Open** in the dialog.
-   - Or run this command once in Terminal:
-     ```bash
-     xattr -cr "/Applications/T3 Code IDE.app"
-     ```
+3. **If macOS shows**: _"Apple could not verify “T3 Code IDE” is free of malware..."_:
+   Run this single command in Terminal to clear the download quarantine flag:
+   ```bash
+   xattr -cr "/Applications/T3 Code IDE.app"
+   ```
+   _(Or run `./scripts/fix-gatekeeper.sh`)_
 
 ---
 
