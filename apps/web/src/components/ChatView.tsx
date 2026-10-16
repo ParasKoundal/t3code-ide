@@ -5615,9 +5615,9 @@ export default function ChatView(props: ChatViewProps) {
     );
     if (!sessionStillExists) usePreviewMiniPlayerStore.getState().close(activeThreadRef);
   }, [activePreviewMiniPlayer, activeThreadRef, deviceState.sessions, deviceStateLoaded]);
-  const openFileSurface = (relativePath: string) => {
+  const openFileSurface = (relativePath: string, line?: number) => {
     if (!activeThreadRef || !activeProject) return;
-    useRightPanelStore.getState().openFile(activeThreadRef, relativePath);
+    useRightPanelStore.getState().openFile(activeThreadRef, relativePath, line);
   };
   const openFileSurfaceStable = useStableCallback(openFileSurface);
   // The thread's own change request, placed against the project it belongs to. Without a
@@ -11093,21 +11093,29 @@ export default function ChatView(props: ChatViewProps) {
           }
           onOpenFile={
             rightPanelFileRoot && !rightPanelFileRootIsPrimary
-              ? (path) =>
-                  openFileSurface(resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd))
+              ? (path: string, line?: number) =>
+                  openFileSurface(resolveWorkspaceFilePath(path, rightPanelFileRoot.root.cwd), line)
               : openFileSurfaceStable
           }
-          onNavigateFolder={(relativePath, folderTrail, keepSource) =>
+          onNavigateFolder={(relativePath: string, folderTrail: string, keepSource?: boolean) => {
+            const resolvedPath =
+              rightPanelFileRoot && !rightPanelFileRootIsPrimary
+                ? resolveWorkspaceFilePath(relativePath, rightPanelFileRoot.root.cwd)
+                : relativePath;
+            const resolvedTrail =
+              rightPanelFileRoot && !rightPanelFileRootIsPrimary && folderTrail
+                ? resolveWorkspaceFilePath(folderTrail, rightPanelFileRoot.root.cwd)
+                : folderTrail;
             useRightPanelStore
               .getState()
               .navigateFolder(
                 activeThreadRef,
                 renderedRightPanelSurface.id,
-                relativePath,
-                folderTrail,
+                resolvedPath,
+                resolvedTrail,
                 keepSource,
-              )
-          }
+              );
+          }}
           folderTrail={renderedRightPanelSurface.folderTrail}
           onPendingChange={
             rightPanelFileRoot

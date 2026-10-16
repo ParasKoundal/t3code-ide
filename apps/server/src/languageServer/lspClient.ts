@@ -68,6 +68,7 @@ export class LspClient {
     });
     // Servers log to stderr; it is drained so a chatty server never blocks.
     this.#process.stderr?.resume();
+    this.#process.stdin?.on("error", (error) => this.#markExited(`stdin error: ${error.message}`));
     this.#process.on("error", (error) => this.#markExited(`failed to start: ${error.message}`));
     this.#process.on("exit", (code, signal) =>
       this.#markExited(`exited (${signal ?? code ?? "unknown"})`),
@@ -133,7 +134,14 @@ export class LspClient {
   }
 
   #write(message: unknown): void {
-    this.#process.stdin?.write(encodeLspMessage(message));
+    if (this.#exited || !this.#process.stdin?.writable) return;
+    try {
+      this.#process.stdin.write(encodeLspMessage(message));
+    } catch (error) {
+      this.#markExited(
+        `stdin write error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   #markExited(reason: string): void {

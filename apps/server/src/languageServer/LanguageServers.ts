@@ -301,10 +301,11 @@ export const make = Effect.gen(function* () {
             catch: languageServerError(`${spec.name} language server failed to start.`),
           });
           const text = yield* readDocumentText(document.absolutePath);
-          if (text === null) return;
-          session.client.notify("textDocument/didOpen", {
-            textDocument: { uri: document.uri, languageId, version: openDocument.version, text },
-          });
+          if (text !== null) {
+            session.client.notify("textDocument/didOpen", {
+              textDocument: { uri: document.uri, languageId, version: openDocument.version, text },
+            });
+          }
         }
 
         // Saves from the editor, the agent, or anything else resend the file.

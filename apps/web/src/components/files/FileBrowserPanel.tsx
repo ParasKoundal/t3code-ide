@@ -239,7 +239,7 @@ export default function FileBrowserPanel({
           relativePath: joinEntryPath(directory, name),
         });
         if ("error" in outcome) return outcome.error;
-        if (kind === "file") onOpenFile(outcome.relativePath);
+        if (kind === "file") onOpenFile(panelPath(outcome.relativePath));
         return null;
       },
     });
@@ -260,7 +260,7 @@ export default function FileBrowserPanel({
         });
         if ("error" in outcome) return outcome.error;
         // Keep the open file open under its new name.
-        if (kind === "file" && selectedPath === path) onOpenFile(outcome.relativePath);
+        if (kind === "file" && selectedPath === path) onOpenFile(panelPath(outcome.relativePath));
         return null;
       },
     });

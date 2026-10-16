@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
@@ -58,6 +60,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
 
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
@@ -88,6 +92,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag }}
 
       - name: Install System Libraries
         run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config imagemagick

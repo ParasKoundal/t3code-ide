@@ -37,7 +37,7 @@ interface FileBreadcrumbsProps {
   readonly environmentId: EnvironmentId;
   /** Moves the browser to a folder crumb; `""` is the workspace root. */
   readonly onNavigateFolder: (relativePath: string) => void;
-  readonly onOpenFile: (relativePath: string) => void;
+  readonly onOpenFile: (relativePath: string, line?: number) => void;
   readonly projectName: string;
   /** The current path; `""` is the workspace root. */
   readonly relativePath: string;
@@ -306,9 +306,15 @@ function SymbolBreadcrumb(props: {
     props.symbols[0] ?? null,
   );
 
-  if (props.symbols.length === 0) return null;
+  const current =
+    (selectedSymbol &&
+      props.symbols.find(
+        (s) => s.name === selectedSymbol.name && s.line === selectedSymbol.line,
+      )) ??
+    props.symbols[0] ??
+    null;
 
-  const current = selectedSymbol ?? props.symbols[0]!;
+  if (props.symbols.length === 0 || !current) return null;
 
   return (
     <div className="flex min-w-0 shrink-0 items-center">

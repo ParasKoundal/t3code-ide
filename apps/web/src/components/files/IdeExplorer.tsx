@@ -31,7 +31,7 @@ interface IdeExplorerProps {
   /** Path of the open file: relative to `cwd`, or absolute for a file in another root. */
   selectedPath: string | null;
   selectedPathRevealId: number;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, line?: number) => void;
   workspaceMutationId: string | null;
   /** The explorer is the window's leftmost column and must clear the window controls. */
   leadingTitlebarInset: boolean;
@@ -175,9 +175,9 @@ export function IdeExplorer(props: IdeExplorerProps) {
       {symbols.length > 0 && (
         <SymbolOutlinePanel
           symbols={symbols}
-          onSelectSymbol={() => {
+          onSelectSymbol={(sym) => {
             if (props.selectedPath) {
-              props.onOpenFile(props.selectedPath);
+              props.onOpenFile(props.selectedPath, sym.line);
             }
           }}
         />

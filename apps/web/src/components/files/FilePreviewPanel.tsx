@@ -135,7 +135,7 @@ interface FilePreviewPanelProps {
   availableEditors: ReadonlyArray<EditorId>;
   revealLine: number | null;
   revealRequestId: number;
-  onOpenFile: (relativePath: string) => void;
+  onOpenFile: (relativePath: string, line?: number) => void;
   /** Moves this folder browser to another folder in place; see `navigateFolder`. */
   onNavigateFolder: (relativePath: string, folderTrail: string, keepSource: boolean) => void;
   /** The deeper path breadcrumbs keep after the browser moved up; see `navigateFolder`. */
@@ -772,6 +772,7 @@ function EditableFileSurface({
 
   const handleApplyInlineEdit = useCallback(
     (newContents: string) => {
+      setExternalFile(editableFileContents(environmentId, cwd, relativePath, newContents));
       setEditedContents(newContents);
       setProjectFileQueryData(environmentId, cwd, relativePath, newContents);
       saveCoordinator.change(newContents);
@@ -781,7 +782,8 @@ function EditableFileSurface({
 
   const handleSendToChat = useCallback(
     (instruction: string, selectedSnippet: string) => {
-      const lines = externalFile.contents.split("\n");
+      const currentContents = editedContents ?? externalFile.contents;
+      const lines = currentContents.split("\n");
       const startLine = selectedRange ? Math.min(selectedRange.start, selectedRange.end) : 1;
       const endLine = selectedRange
         ? Math.max(selectedRange.start, selectedRange.end)
@@ -1059,7 +1061,7 @@ function EditableFileSurface({
           isOpen={inlineEditOpen}
           relativePath={relativePath}
           selectedRange={selectedRange}
-          originalCode={externalFile.contents}
+          originalCode={editedContents ?? externalFile.contents}
           onClose={() => setInlineEditOpen(false)}
           onApplyEdit={handleApplyInlineEdit}
           onSendToChat={handleSendToChat}
@@ -1425,7 +1427,7 @@ export default function FilePreviewPanel({
                 trail={breadcrumbTrail}
                 workspaceMutationId={workspaceMutationId}
                 symbols={documentSymbols}
-                onSelectSymbol={(_sym) => onOpenFile(breadcrumbPath)}
+                onSelectSymbol={(sym) => onOpenFile(breadcrumbPath, sym.line)}
               />
             </div>
           </ScrollArea>
@@ -1468,7 +1470,7 @@ export default function FilePreviewPanel({
               <WrapTextIcon className="size-3.5" />
             </FileSurfaceAction>
           ) : null}
-          {showsRawText && canWriteFiles ? (
+          {showsRawText && canWriteFiles && !isHostFile && !file.data?.truncated ? (
             <FileSurfaceAction
               label="Inline code edit (Cmd+K)"
               onPress={() => {

@@ -680,10 +680,19 @@ export const layer: Layer.Layer<
             // A model switch clears the row's usage; the last turn this native
             // transcript reported still measures how full it is.
             providerThread: {
-              contextUsage:
-                providerThread.contextUsage ??
-                latestNativeContextUsage(projection, providerThread)?.usage ??
-                null,
+              contextUsage: (() => {
+                const usage =
+                  providerThread.contextUsage ??
+                  latestNativeContextUsage(projection, providerThread)?.usage ??
+                  null;
+                const modelContextWindow = session.getModelContextWindow?.(
+                  run.modelSelection,
+                  resolvedRuntimePolicy.cwd,
+                );
+                return usage === null || modelContextWindow === undefined
+                  ? usage
+                  : { ...usage, maxTokens: modelContextWindow };
+              })(),
             },
             modelContextWindow: session.getModelContextWindow?.(
               run.modelSelection,

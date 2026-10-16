@@ -26,6 +26,7 @@ import type {
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Context from "effect/Context";
+import * as Option from "effect/Option";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -461,6 +462,26 @@ export const make = Effect.gen(function* () {
         .makeDirectory(path.dirname(absolutePath), { recursive: true })
         .pipe(Effect.mapError(operationError("make-directory", path.dirname(absolutePath))));
 
+    const validateContainedParent = (resolved: { absolutePath: string; relativePath: string }) =>
+      Effect.gen(function* () {
+        const parentDir = path.dirname(resolved.absolutePath);
+        const parentExists = yield* fileSystem.exists(parentDir).pipe(Effect.orDie);
+        if (!parentExists) return;
+        const realParent = yield* fileSystem.realPath(parentDir).pipe(Effect.orDie);
+        const realRoot = yield* fileSystem.realPath(input.cwd).pipe(Effect.orDie);
+        const relative = path.relative(realRoot, realParent);
+        if (relative.startsWith("..") || path.isAbsolute(relative)) {
+          return yield* Effect.fail(
+            new WorkspacePaths.WorkspacePathOutsideRootError({
+              workspaceRoot: input.cwd,
+              relativePath: resolved.relativePath,
+            }),
+          );
+        }
+      });
+
+    yield* validateContainedParent(target);
+
     let resultPath = target.relativePath;
     switch (input.type) {
       case "create-file":
@@ -483,11 +504,25 @@ export const make = Effect.gen(function* () {
           relativePath: input.newRelativePath,
         });
         if (destination.absolutePath === target.absolutePath) break;
-        // A case-only rename on a case-insensitive disk resolves to the same entry.
-        if (destination.absolutePath.toLowerCase() !== target.absolutePath.toLowerCase()) {
+        yield* validateContainedParent(destination);
+        const isSameEntry = yield* Effect.gen(function* () {
+          const targetStat = yield* fileSystem.stat(target.absolutePath).pipe(Effect.option);
+          const destStat = yield* fileSystem.stat(destination.absolutePath).pipe(Effect.option);
+          if (Option.isSome(targetStat) && Option.isSome(destStat)) {
+            return (
+              targetStat.value.dev === destStat.value.dev &&
+              targetStat.value.ino === destStat.value.ino
+            );
+          }
+          return false;
+        });
+        if (!isSameEntry) {
           yield* ensureAbsent(destination);
         }
         yield* makeParent(destination.absolutePath);
+        if (!isSameEntry) {
+          yield* ensureAbsent(destination);
+        }
         yield* fileSystem
           .rename(target.absolutePath, destination.absolutePath)
           .pipe(Effect.mapError(operationError("rename", destination.absolutePath)));
